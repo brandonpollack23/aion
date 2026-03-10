@@ -293,7 +293,7 @@ export async function startLoginFlow(callbacks?: {
     
     // Try to open browser automatically
     try {
-      Bun.spawn(["open", authUrl]);
+      Bun.spawn([process.platform === "darwin" ? "open" : "xdg-open", authUrl]);
     } catch {
       // If auto-open fails, user can click the link manually
     }
@@ -422,7 +422,7 @@ export async function upgradePermissions(
     callbacks?.onAuthUrl?.(authUrl);
     
     try {
-      Bun.spawn(["open", authUrl]);
+      Bun.spawn([process.platform === "darwin" ? "open" : "xdg-open", authUrl]);
     } catch {
       // User can click the link manually
     }

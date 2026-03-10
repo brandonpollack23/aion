@@ -236,7 +236,7 @@ export function DetailsPanel() {
     editEvent: () => openEditDialog(),
     proposeNewTime: () => proposeNewTime(),
     deleteEvent: () => deleteEvent(),
-    openMeetingLink: meetingLink ? () => Bun.spawn(["open", meetingLink]) : undefined,
+    openMeetingLink: meetingLink ? () => Bun.spawn([process.platform === "darwin" ? "open" : "xdg-open", meetingLink]) : undefined,
     toggleTimezone: hasOriginalTz ? toggleTimezone : undefined,
   }), [event.id, meetingLink, updateAttendance, openEditDialog, proposeNewTime, deleteEvent, hasOriginalTz, showOriginalTz]);
   
