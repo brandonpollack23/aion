@@ -29,6 +29,7 @@ import { SearchView } from "./SearchView.tsx";
 import { DesktopNotificationHost } from "../notifications/DesktopNotificationHost.tsx";
 import {
   overlayStackAtom,
+  dialogEventAtom,
   isLoggedInAtom,
   enabledCalendarsAtom,
   enabledCalendarsLoadedAtom,
@@ -40,6 +41,7 @@ import {
   rebuildSearchIndexAtom,
   loadCalendarCacheAtom,
   loadViewSettingsAtom,
+  popOverlayAtom,
 } from "../state/actions.ts";
 import { getDisabledCalendars } from "../config/calendarSettings.ts";
 import { initDb } from "../db/db.ts";
@@ -49,6 +51,15 @@ import { theme } from "./theme.ts";
 // Render overlays from stack - allows multiple overlays to be visible
 function OverlayRenderer() {
   const overlayStack = useAtomValue(overlayStackAtom);
+  const dialogEvent = useAtomValue(dialogEventAtom);
+  const popOverlay = useSetAtom(popOverlayAtom);
+
+  useEffect(() => {
+    const top = overlayStack[overlayStack.length - 1];
+    if (top?.kind === "dialog" && !dialogEvent) {
+      popOverlay();
+    }
+  }, [dialogEvent, overlayStack, popOverlay]);
 
   return (
     <>

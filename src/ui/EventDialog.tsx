@@ -144,7 +144,6 @@ export function EventDialog() {
 
   // Track if we've initialized to prevent re-initialization during background sync
   const initializedEventIdRef = useRef<string | null>(null);
-
   useEffect(() => {
     if (!dialogEvent) return;
 
@@ -181,6 +180,12 @@ export function EventDialog() {
       const end = parseTimeObject(dialogEvent.end, tz);
       endDateVal = end.toFormat("yyyy-MM-dd");
       endTimeVal = end.toFormat("HH:mm");
+    }
+
+    // Default times for new timed events so the masked inputs work
+    if (!allDayVal) {
+      if (!startTimeVal) startTimeVal = "09:00";
+      if (!endTimeVal) endTimeVal = "10:00";
     }
 
     const attendeesVal = dialogEvent.attendees?.map((a) => a.email) || [];
@@ -331,12 +336,16 @@ export function EventDialog() {
 
   // Handler for Ctrl+S in inputs
   const handleInputKeyPress = useCallback((key: { name?: string; ctrl?: boolean }) => {
+    if (key.name === "escape") {
+      handleCancel();
+      return true;
+    }
     if (key.name === "s" && key.ctrl) {
       handleSave();
       return true;
     }
     return false;
-  }, [handleSave]);
+  }, [handleCancel, handleSave]);
 
   const editTextField = useCallback(async (
     value: string,
@@ -504,6 +513,7 @@ export function EventDialog() {
                       style={{ ...inputStyle }}
                       focusedStyle={focusedInputStyle}
                       onKeyPress={(key) => handleTextInputKeyPress(key, summary, setSummary)}
+                      autoFocus
                     />
                   </Box>
                 </Box>
@@ -625,7 +635,11 @@ export function EventDialog() {
                     focusedStyle={focusedInputStyle}
                     onKeyPress={handleInputKeyPress}
                   />
-                  {!isAllDay && (
+                </Box>
+
+                {!isAllDay && (
+                  <Box style={{ flexDirection: "row", gap: 1 }}>
+                    <Text style={{ color: theme.text.dim, width: LABEL_WIDTH }}>start tm</Text>
                     <Input
                       value={startTime}
                       onChange={setStartTime}
@@ -635,8 +649,8 @@ export function EventDialog() {
                       focusedStyle={focusedInputStyle}
                       onKeyPress={handleInputKeyPress}
                     />
-                  )}
-                </Box>
+                  </Box>
+                )}
 
                 {/* End */}
                 <Box style={{ flexDirection: "row", gap: 1 }}>
@@ -650,7 +664,11 @@ export function EventDialog() {
                     focusedStyle={focusedInputStyle}
                     onKeyPress={handleInputKeyPress}
                   />
-                  {!isAllDay && (
+                </Box>
+
+                {!isAllDay && (
+                  <Box style={{ flexDirection: "row", gap: 1 }}>
+                    <Text style={{ color: theme.text.dim, width: LABEL_WIDTH }}>end tm</Text>
                     <Input
                       value={endTime}
                       onChange={setEndTime}
@@ -660,8 +678,8 @@ export function EventDialog() {
                       focusedStyle={focusedInputStyle}
                       onKeyPress={handleInputKeyPress}
                     />
-                  )}
-                </Box>
+                  </Box>
+                )}
 
                 {/* Location */}
                 <Box style={{ flexDirection: "row", gap: 1, clip: true }}>
