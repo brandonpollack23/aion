@@ -1400,6 +1400,7 @@ export const syncAtom = atom(null, async (get, set, options?: { force?: boolean;
         // Pure incremental sync - apply changes
         if (incrementalResult.changed.length > 0 || incrementalResult.deleted.length > 0) {
           appLogger.info(`Incremental sync: ${incrementalResult.changed.length} changed, ${incrementalResult.deleted.length} deleted`);
+          const previousEvents = get(eventsAtom);
           
           // Apply changes to local database
           for (const event of incrementalResult.changed) {
@@ -1440,6 +1441,24 @@ export const syncAtom = atom(null, async (get, set, options?: { force?: boolean;
             eventsMap[event.id] = event;
           }
           set(eventsAtom, eventsMap);
+
+          const notificationConfig = getConfig()["desktop-notifications"];
+          if (notificationConfig.enabled && notificationConfig.invites) {
+            const { buildPendingInviteNotifications } = await import("../notifications/reminders.ts");
+            const { sendDesktopNotification } = await import("../notifications/native.ts");
+            const notifications = buildPendingInviteNotifications(
+              incrementalResult.changed,
+              previousEvents,
+              get(timezoneAtom)
+            );
+
+            for (const notification of notifications) {
+              await sendDesktopNotification(notification, {
+                enabled: notificationConfig.enabled,
+                terminal_bell_fallback: notificationConfig.terminal_bell_fallback,
+              });
+            }
+          }
           
           // Rebuild search index after sync
           buildSearchIndex(eventsMap);

@@ -45,6 +45,7 @@
     "jotai": "^2.10.4",
     "lunr": "^2.3.9",
     "luxon": "^3.5.0",
+    "node-notifier": "10.0.1",
     "react": "^19.0.0",
     "react-error-boundary": "^6.1.0",
     "rrule": "^2.8.1",

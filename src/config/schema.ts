@@ -89,6 +89,15 @@ const ViewSchema = z.object({
   mode: ViewModeSchema,
 }).default({});
 
+// Native desktop notification configuration
+const DesktopNotificationsSchema = z.object({
+  enabled: z.boolean().default(true),
+  invites: z.boolean().default(true),
+  event_reminders: z.boolean().default(true),
+  poll_seconds: z.number().min(5).max(3600).default(30),
+  terminal_bell_fallback: z.boolean().default(true),
+}).default({});
+
 // CalDAV account configuration (stored in config.toml, not accounts.json)
 export const CalDAVAccountSchema = z.object({
   /** Display name for the account */
@@ -112,6 +121,7 @@ export const ConfigSchema = z.object({
   theme: ThemeSchema,
   google: GoogleSchema,
   view: ViewSchema,
+  "desktop-notifications": DesktopNotificationsSchema,
   caldav: z.array(CalDAVAccountSchema).default([]),
 }).default({});
 

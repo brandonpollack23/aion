@@ -115,7 +115,7 @@ export async function getCalDAVCalendars(
     })
     .map((cal, index) => ({
       id: cal.url, // CalDAV uses URLs as calendar identifiers
-      summary: cal.displayName || `Calendar ${index + 1}`,
+      summary: typeof cal.displayName === "string" ? cal.displayName : `Calendar ${index + 1}`,
       description: cal.description,
       primary: index === 0, // First calendar as primary
       backgroundColor: calDAVColorToHex(cal.calendarColor),

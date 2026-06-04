@@ -70,9 +70,43 @@ export interface CalendarListEntry {
   primary?: boolean;
   backgroundColor?: string;
   foregroundColor?: string;
+  defaultReminders?: Array<{
+    method: string;
+    minutes: number;
+  }>;
   accessRole: "owner" | "writer" | "reader" | "freeBusyReader";
   // Extended fields for multi-account
   accountEmail?: string;
+}
+
+function applyGoogleDefaultReminders(
+  events: GCalEvent[],
+  calendar: CalendarListEntry
+): GCalEvent[] {
+  const defaults = calendar.defaultReminders?.filter((reminder) => {
+    return (
+      (reminder.method === "popup" || reminder.method === "email") &&
+      Number.isFinite(reminder.minutes)
+    );
+  }).map((reminder) => ({
+    method: reminder.method as "popup" | "email",
+    minutes: reminder.minutes,
+  })) || [];
+
+  if (defaults.length === 0) return events;
+
+  return events.map((event) => {
+    if (event.reminders?.useDefault !== true) return event;
+    if (event.reminders.overrides && event.reminders.overrides.length > 0) return event;
+
+    return {
+      ...event,
+      reminders: {
+        ...event.reminders,
+        overrides: defaults,
+      },
+    };
+  });
 }
 
 /**
@@ -133,7 +167,7 @@ export async function getAllCalendars(): Promise<CalendarListEntry[]> {
   
   // If ALL accounts failed, throw the first error so user sees it
   if (errors.length > 0 && errors.length === accounts.length) {
-    throw errors[0].error;
+    throw errors[0]!.error;
   }
   
   apiLogger.debug(`Total calendars fetched: ${allCalendars.length}`);
@@ -483,7 +517,7 @@ export async function fetchAllEvents(options: {
               maxResults: options.maxResults,
               accountEmail: account.account.email,
             });
-            allEvents.push(...events);
+            allEvents.push(...applyGoogleDefaultReminders(events, calendar));
             
             if (syncToken) {
               syncTokens.set(getSyncTokenKey(account.account.email, calendar.id), syncToken);
@@ -503,7 +537,7 @@ export async function fetchAllEvents(options: {
   
   // If ALL accounts failed, throw the first error so user sees it
   if (accountErrors.length > 0 && accountErrors.length === accounts.length) {
-    throw accountErrors[0].error;
+    throw accountErrors[0]!.error;
   }
   
   // Enrich events with display names from contacts (Google accounts only)
@@ -674,7 +708,7 @@ export async function incrementalSyncAll(
               continue;
             }
             
-            changed.push(...result.events);
+            changed.push(...applyGoogleDefaultReminders(result.events, calendar));
             deleted.push(...result.deleted);
             
             if (result.nextSyncToken) {
@@ -696,7 +730,7 @@ export async function incrementalSyncAll(
   
   // If ALL accounts failed, throw the first error so user sees it
   if (accountErrors.length > 0 && accountErrors.length === accounts.length) {
-    throw accountErrors[0].error;
+    throw accountErrors[0]!.error;
   }
   
   // Enrich changed events with display names (Google events only)

@@ -5,6 +5,7 @@
 
 import type { GCalEvent, Attendee, Organizer } from "../domain/gcalEvent.ts";
 import { makeCompositeId } from "../db/eventsRepo.ts";
+import { DateTime } from "luxon";
 
 // ===== iCalendar Parsing =====
 
@@ -186,12 +187,12 @@ function parseDuration(value: string): { weeks?: number; days?: number; hours?: 
 
   const weekMatch = str.match(/P(\d+)W/);
   if (weekMatch) {
-    result.weeks = parseInt(weekMatch[1], 10);
+    result.weeks = parseInt(weekMatch[1]!, 10);
     return result;
   }
 
   const dayMatch = str.match(/P(\d+)D/);
-  if (dayMatch) result.days = parseInt(dayMatch[1], 10);
+  if (dayMatch) result.days = parseInt(dayMatch[1]!, 10);
 
   const timeMatch = str.match(/T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
   if (timeMatch) {
@@ -201,6 +202,103 @@ function parseDuration(value: string): { weeks?: number; days?: number; hours?: 
   }
 
   return result;
+}
+
+function durationToMinutes(value: string): number {
+  const sign = value.startsWith("-") ? -1 : 1;
+  const dur = parseDuration(value);
+  const total =
+    (dur.weeks || 0) * 7 * 24 * 60 +
+    (dur.days || 0) * 24 * 60 +
+    (dur.hours || 0) * 60 +
+    (dur.minutes || 0) +
+    (dur.seconds || 0) / 60;
+  return sign * total;
+}
+
+function timeObjectToDateTime(time: { dateTime?: string; date?: string; timeZone?: string }): DateTime | null {
+  if (time.dateTime) {
+    const dt = DateTime.fromISO(time.dateTime, { zone: time.timeZone || undefined });
+    return dt.isValid ? dt : null;
+  }
+  if (time.date) {
+    const dt = DateTime.fromISO(time.date, { zone: time.timeZone || undefined }).startOf("day");
+    return dt.isValid ? dt : null;
+  }
+  return null;
+}
+
+function parseVAlarmBlocks(lines: string[]): ICalProperty[][] {
+  const blocks: ICalProperty[][] = [];
+  let current: ICalProperty[] | null = null;
+
+  for (const line of lines) {
+    if (line === "BEGIN:VALARM") {
+      current = [];
+      continue;
+    }
+
+    if (line === "END:VALARM") {
+      if (current) {
+        blocks.push(current);
+      }
+      current = null;
+      continue;
+    }
+
+    if (current) {
+      current.push(parseProperty(line));
+    }
+  }
+
+  return blocks;
+}
+
+function parseVAlarmReminders(
+  lines: string[],
+  start: { dateTime?: string; date?: string; timeZone?: string },
+  end: { dateTime?: string; date?: string; timeZone?: string }
+): GCalEvent["reminders"] | undefined {
+  const startDt = timeObjectToDateTime(start);
+  if (!startDt) return undefined;
+
+  const reminders: NonNullable<GCalEvent["reminders"]>["overrides"] = [];
+
+  for (const block of parseVAlarmBlocks(lines)) {
+    const action = block.find((prop) => prop.name === "ACTION")?.value.toUpperCase();
+    const trigger = block.find((prop) => prop.name === "TRIGGER");
+    if (!trigger) continue;
+
+    let method: "popup" | "email" | null = null;
+    if (action === "DISPLAY" || action === "AUDIO") {
+      method = "popup";
+    } else if (action === "EMAIL") {
+      method = "email";
+    }
+    if (!method) continue;
+
+    let triggerDt: DateTime | null = null;
+    if (trigger.params.VALUE === "DATE-TIME" || /^\d{8}T/.test(trigger.value)) {
+      const parsedTrigger = icalDateToISO(trigger.value, trigger.params.TZID);
+      triggerDt = timeObjectToDateTime(parsedTrigger);
+    } else {
+      const related = trigger.params.RELATED?.toUpperCase();
+      const base = related === "END" ? timeObjectToDateTime(end) : startDt;
+      if (!base) continue;
+      triggerDt = base.plus({ minutes: durationToMinutes(trigger.value) });
+    }
+
+    if (!triggerDt || !triggerDt.isValid) continue;
+
+    reminders.push({
+      method,
+      minutes: Math.round(startDt.diff(triggerDt, "minutes").minutes),
+    });
+  }
+
+  return reminders.length > 0
+    ? { useDefault: false, overrides: reminders }
+    : undefined;
 }
 
 /**
@@ -319,15 +417,16 @@ function parseVEvent(
   // Parse timestamps
   const created = props.get("CREATED")?.[0]?.value;
   const lastModified = props.get("LAST-MODIFIED")?.[0]?.value;
+  const reminders = parseVAlarmReminders(lines, start, end);
 
   return {
     id: compositeId,
     summary: unescapeText(props.get("SUMMARY")?.[0]?.value || ""),
     description: props.get("DESCRIPTION")?.[0]?.value
-      ? unescapeText(props.get("DESCRIPTION")[0]!.value)
+      ? unescapeText(props.get("DESCRIPTION")![0]!.value)
       : undefined,
     location: props.get("LOCATION")?.[0]?.value
-      ? unescapeText(props.get("LOCATION")[0]!.value)
+      ? unescapeText(props.get("LOCATION")![0]!.value)
       : undefined,
     status,
     eventType: "default",
@@ -337,6 +436,7 @@ function parseVEvent(
     organizer,
     recurrence,
     recurringEventId,
+    reminders,
     createdAt: created ? icalTimestampToISO(created) : undefined,
     updatedAt: lastModified ? icalTimestampToISO(lastModified) : undefined,
     accountEmail,
@@ -425,7 +525,7 @@ function isoToICalDate(dateTime?: string, date?: string, timeZone?: string): { v
     const cleaned = dateTime.replace(/[-:]/g, "").replace(/\.\d+/, "");
     // Ensure format is YYYYMMDDTHHMMSS
     const match = cleaned.match(/^(\d{8}T\d{6})/);
-    const value = match ? match[1] : cleaned;
+    const value = match ? match[1]! : cleaned;
 
     if (timeZone && timeZone !== "UTC") {
       return { value, params: `;TZID=${timeZone}` };

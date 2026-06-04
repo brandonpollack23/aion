@@ -1,7 +1,11 @@
 import TOML from "@iarna/toml";
 import { ConfigSchema, type Config, type CalDAVAccount } from "./schema.ts";
 import { appLogger } from "../lib/logger.ts";
-import { AION_CONFIG_DIR, CONFIG_FILE, ensureDirectories } from "../lib/paths.ts";
+import {
+  AION_CONFIG_DIR,
+  CONFIG_FILE,
+  ensureDirectories,
+} from "../lib/paths.ts";
 
 // Default config as TOML string for reference
 export const DEFAULT_CONFIG_TOML = `# Aion Configuration
@@ -39,6 +43,13 @@ accepted = "green"
 declined = "red"
 tentative = "yellow"
 needsAction = "blackBright"
+
+[desktop-notifications]
+enabled = true
+invites = true
+event_reminders = true
+poll_seconds = 30
+terminal_bell_fallback = true
 
 [view]
 columns = 1
@@ -82,7 +93,9 @@ export async function loadConfig(): Promise<Config> {
       const content = await file.text();
       const parsed = TOML.parse(content);
       cachedConfig = ConfigSchema.parse(parsed);
-      appLogger.debug("Loaded config from file", { columns: cachedConfig.view.columns });
+      appLogger.debug("Loaded config from file", {
+        columns: cachedConfig.view.columns,
+      });
     } else {
       cachedConfig = ConfigSchema.parse({});
     }
@@ -119,7 +132,7 @@ type ConfigUpdates = Omit<Partial<Config>, "view"> & {
 // Update a specific config value and save to disk
 export async function updateConfig(updates: ConfigUpdates): Promise<void> {
   const current = getConfig();
-  
+
   // Deep merge updates
   const updated = {
     ...current,
@@ -127,11 +140,15 @@ export async function updateConfig(updates: ConfigUpdates): Promise<void> {
     theme: { ...current.theme, ...updates.theme },
     google: { ...current.google, ...updates.google },
     view: { ...current.view, ...updates.view },
+    "desktop-notifications": {
+      ...current["desktop-notifications"],
+      ...updates["desktop-notifications"],
+    },
     caldav: updates.caldav ?? current.caldav,
   };
-  
+
   cachedConfig = updated;
-  
+
   try {
     await ensureDirectories();
     const tomlContent = TOML.stringify(updated as unknown as TOML.JsonMap);
@@ -154,7 +171,9 @@ export function getCalDAVAccounts(): CalDAVAccount[] {
  * Add or update a CalDAV account in config and save to disk.
  * Matches by email — updates if exists, appends if new.
  */
-export async function saveCalDAVAccountToConfig(account: CalDAVAccount): Promise<void> {
+export async function saveCalDAVAccountToConfig(
+  account: CalDAVAccount,
+): Promise<void> {
   const config = getConfig();
   const existing = config.caldav.findIndex((a) => a.email === account.email);
 
@@ -172,7 +191,9 @@ export async function saveCalDAVAccountToConfig(account: CalDAVAccount): Promise
 /**
  * Remove a CalDAV account from config by email and save to disk.
  */
-export async function removeCalDAVAccountFromConfig(email: string): Promise<void> {
+export async function removeCalDAVAccountFromConfig(
+  email: string,
+): Promise<void> {
   const config = getConfig();
   const updated = config.caldav.filter((a) => a.email !== email);
   await updateConfig({ caldav: updated });
