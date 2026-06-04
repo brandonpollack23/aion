@@ -4,6 +4,7 @@ declare module "node-notifier" {
     subtitle?: string;
     message: string;
     appID?: string;
+    icon?: string;
     sound?: boolean;
     wait?: boolean;
     timeout?: number;

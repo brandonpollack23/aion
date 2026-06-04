@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { DateTime } from "luxon";
+import type { NotificationOptions } from "node-notifier";
 import type { GCalEvent } from "../src/domain/gcalEvent.ts";
 import { parseICalendar } from "../src/api/ical.ts";
 import {
@@ -142,6 +143,23 @@ END:VCALENDAR`);
 });
 
 describe("native notification fallback", () => {
+  test("sends desktop notifications with the Aion logo and supported native sound option", async () => {
+    let sentOptions: NotificationOptions | undefined;
+
+    const delivered = await sendDesktopNotification(
+      { title: "Aion", message: "Test" },
+      { enabled: true, terminal_bell_fallback: false },
+      (options, callback) => {
+        sentOptions = options;
+        callback?.(null, "delivered");
+      }
+    );
+
+    expect(delivered).toBe(true);
+    expect(sentOptions!.icon).toEndWith("images/logo.png");
+    expect(sentOptions!.sound).toBe(process.platform === "darwin" || process.platform === "win32" ? true : undefined);
+  });
+
   test("emits terminal bell when native notifier fails and fallback is enabled", async () => {
     let bells = 0;
 
