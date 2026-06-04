@@ -9,6 +9,7 @@ export type FocusContext =
   | "calendars"
   | "days"
   | "timeline"
+  | "month"
   | "details"
   | "dialog"
   | "command"
@@ -72,7 +73,12 @@ export const searchSelectedIndexAtom = atom<number>(0);
 
 // ===== Multi-Day View =====
 
-// Number of columns to display (1 or 3)
+export type ViewMode = "day" | "month";
+
+// Primary calendar view
+export const viewModeAtom = atom<ViewMode>("day");
+
+// Number of columns to display in day view (1, 3, or 5)
 export const columnCountAtom = atom<number>(1);
 
 // Currently focused column (0-indexed, 0 = main column)

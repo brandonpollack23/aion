@@ -31,61 +31,18 @@ import {
   moveColumnAtom,
 } from "../state/actions.ts";
 import { useDeleteEvent } from "./hooks/useDeleteEvent.tsx";
-import { formatDayHeader, isToday, getNowMinutes, formatTime, getEventStart, getEventEnd, getLocalTimezone, formatHourLabel } from "../domain/time.ts";
-import { getDisplayTitle, type ResponseStatus } from "../domain/gcalEvent.ts";
+import { formatDayHeader, isToday, getNowMinutes, formatTime, getEventStart, getLocalTimezone, formatHourLabel } from "../domain/time.ts";
+import { getDisplayTitle } from "../domain/gcalEvent.ts";
 import { layoutDay, getChronologicalEvents, findNearestEvent } from "../domain/layout.ts";
 import { handleKeyEvent } from "../keybinds/useKeybinds.tsx";
 import { theme } from "./theme.ts";
+import { getAttendanceColor, getAttendanceIndicator, getEventColor, getSelfResponseStatus, isEventPast } from "./eventDisplay.ts";
 import type { GCalEvent } from "../domain/gcalEvent.ts";
 import type { TimedEventLayout } from "../domain/layout.ts";
 
 const HOUR_LABEL_WIDTH = 7;
 const SLOTS_PER_HOUR = 4;
 const MINUTES_PER_SLOT = 15;
-
-function getSelfResponseStatus(event: GCalEvent): ResponseStatus | undefined {
-  const selfAttendee = event.attendees?.find((a) => a.self);
-  return selfAttendee?.responseStatus;
-}
-
-function getAttendanceIndicator(status: ResponseStatus | undefined, hasAttendees: boolean): string {
-  switch (status) {
-    case "accepted": return "✓ ";
-    case "declined": return "✗ ";
-    case "tentative": return "? ";
-    case "needsAction": return "! ";
-    default: return hasAttendees ? "! " : "";
-  }
-}
-
-function getAttendanceColor(status: ResponseStatus | undefined, hasAttendees: boolean): string | undefined {
-  switch (status) {
-    case "accepted": return theme.status.accepted;
-    case "declined": return theme.status.declined;
-    case "tentative": return theme.status.tentative;
-    case "needsAction": return theme.accent.warning;
-    default: return hasAttendees ? theme.accent.warning : undefined;
-  }
-}
-
-function isEventPast(event: GCalEvent, tz: string): boolean {
-  const end = getEventEnd(event, tz);
-  return end < DateTime.now();
-}
-
-function getEventColor(event: GCalEvent, calendarColorMap: Record<string, string>): string {
-  const key = `${event.accountEmail}:${event.calendarId}`;
-  const calendarColor = calendarColorMap[key] || "#4285f4";
-
-  if (calendarColor !== "#4285f4") return calendarColor;
-
-  switch (event.eventType) {
-    case "outOfOffice": return theme.eventType.outOfOffice;
-    case "focusTime": return theme.eventType.focusTime;
-    case "birthday": return theme.eventType.birthday;
-    default: return calendarColor;
-  }
-}
 
 function minutesToSlot(minutes: number): number {
   return Math.floor(minutes / MINUTES_PER_SLOT);

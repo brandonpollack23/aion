@@ -13,6 +13,7 @@ import {
   messageVisibleAtom,
   searchQueryAtom,
   searchResultsAtom,
+  viewModeAtom,
   type MessageType,
 } from "../state/atoms.ts";
 import {
@@ -211,6 +212,7 @@ function CommandInput() {
 function SearchInput() {
   const query = useAtomValue(searchQueryAtom);
   const results = useAtomValue(searchResultsAtom);
+  const viewMode = useAtomValue(viewModeAtom);
   const updateQuery = useSetAtom(updateSearchQueryAtom);
   const moveSelection = useSetAtom(moveSearchSelectionAtom);
   const selectResult = useSetAtom(selectSearchResultAtom);
@@ -221,7 +223,7 @@ function SearchInput() {
     const isCtrlN = key.sequence === "\x0e";
 
     if (key.name === "escape") {
-      setFocus("timeline");
+      setFocus(viewMode === "month" ? "month" : "timeline");
       return true;
     }
     if (key.name === "return") {
@@ -237,7 +239,7 @@ function SearchInput() {
       return true;
     }
     return false;
-  }, [setFocus, selectResult, moveSelection]);
+  }, [setFocus, selectResult, moveSelection, viewMode]);
 
   return (
     <FocusScope trap>

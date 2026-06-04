@@ -3,6 +3,8 @@ import { Box, Text, useApp, Keybind, JumpNav, DialogHost } from "@semos-labs/gly
 import { Loader } from "./Loader.tsx";
 import { Provider, useAtomValue, useSetAtom } from "jotai";
 import { DayView } from "./DayView.tsx";
+import { MonthView } from "./MonthView.tsx";
+import { CalendarsSidebar } from "./CalendarsSidebar.tsx";
 import { DetailsPanel } from "./DetailsPanel.tsx";
 import { EventDialog } from "./EventDialog.tsx";
 import { ProposeTimeDialog } from "./ProposeTimeDialog.tsx";
@@ -17,7 +19,7 @@ import { AccountsDialog } from "./AccountsDialog.tsx";
 import { CalDAVLoginDialog } from "./CalDAVLoginDialog.tsx";
 import { MessagesDialog } from "./MessagesDialog.tsx";
 import { SearchView } from "./SearchView.tsx";
-import { overlayStackAtom, isLoggedInAtom, enabledCalendarsAtom, enabledCalendarsLoadedAtom } from "../state/atoms.ts";
+import { overlayStackAtom, isLoggedInAtom, enabledCalendarsAtom, enabledCalendarsLoadedAtom, viewModeAtom } from "../state/atoms.ts";
 import { loadEventsAtom, checkAuthStatusAtom, rebuildSearchIndexAtom, loadCalendarCacheAtom, loadViewSettingsAtom } from "../state/actions.ts";
 import { getDisabledCalendars } from "../config/calendarSettings.ts";
 import { initDb } from "../db/db.ts";
@@ -75,6 +77,7 @@ function AppContent() {
   const setDisabledCalendars = useSetAtom(enabledCalendarsAtom);
   const setCalendarsLoaded = useSetAtom(enabledCalendarsLoadedAtom);
   const isLoggedIn = useAtomValue(isLoggedInAtom);
+  const viewMode = useAtomValue(viewModeAtom);
   const rebuildSearchIndex = useSetAtom(rebuildSearchIndexAtom);
 
   // Fast init: config + db + cached data, then show UI immediately
@@ -178,13 +181,16 @@ function AppContent() {
             )}
           </Box>
           <Text style={{ color: theme.text.dim }}>
-            /:search  C-g:goto  C:calendars  ?:help
+            /:search  M:month  C-g:goto  C:calendars  ?:help
           </Text>
         </Box>
 
         {/* Main content */}
         <Box style={{ flexGrow: 1, flexShrink: 1, paddingX: 1, clip: true }}>
-          <DayView />
+          <Box style={{ flexDirection: "row", flexGrow: 1, height: "100%", clip: true }}>
+            <CalendarsSidebar />
+            {viewMode === "month" ? <MonthView /> : <DayView />}
+          </Box>
         </Box>
 
         {/* Status bar */}

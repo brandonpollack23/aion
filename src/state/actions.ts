@@ -30,9 +30,11 @@ import {
   timezoneAtom,
   calendarsAtom,
   calendarSidebarVisibleAtom,
+  viewModeAtom,
   columnCountAtom,
   focusedColumnAtom,
   focusedColumnEventsAtom,
+  type ViewMode,
   type FocusContext,
   type LoggedMessage,
   type Overlay,
@@ -228,6 +230,7 @@ export const moveEventSelectionAtom = atom(
 export const jumpToNowAtom = atom(null, (get, set) => {
   const today = DateTime.now().startOf("day");
   set(selectedDayAtom, today);
+  set(viewAnchorDayAtom, today);
   
   const layout = get(dayLayoutAtom);
   const nowMinutes = getNowMinutes();
@@ -267,14 +270,15 @@ export const toggleAllDayExpandedAtom = atom(null, (get, set) => {
 // Toggle calendar sidebar visibility
 export const toggleCalendarSidebarAtom = atom(null, (get, set) => {
   const current = get(calendarSidebarVisibleAtom);
+  const viewMode = get(viewModeAtom);
   set(calendarSidebarVisibleAtom, !current);
   
   // If opening the sidebar, focus it
   if (!current) {
     set(focusAtom, "calendars");
   } else {
-    // If closing, return focus to days
-    set(focusAtom, "days");
+    // If closing, return focus to the active primary view
+    set(focusAtom, viewMode === "month" ? "month" : "days");
   }
 });
 
@@ -282,6 +286,33 @@ export const toggleCalendarSidebarAtom = atom(null, (get, set) => {
 export const loadViewSettingsAtom = atom(null, (get, set) => {
   const config = getConfig();
   set(columnCountAtom, config.view.columns);
+  set(viewModeAtom, config.view.mode);
+  if (config.view.mode === "month") {
+    set(focusAtom, "month");
+    set(viewAnchorDayAtom, get(selectedDayAtom).startOf("month"));
+  }
+});
+
+// Set primary calendar view mode
+export const setViewModeAtom = atom(null, (get, set, mode: ViewMode) => {
+  const selectedDay = get(selectedDayAtom);
+  set(viewModeAtom, mode);
+  set(focusAtom, mode === "month" ? "month" : "timeline");
+  if (mode === "month") {
+    set(viewAnchorDayAtom, selectedDay.startOf("month"));
+    set(selectedEventIdAtom, null);
+  } else {
+    set(viewAnchorDayAtom, selectedDay);
+  }
+
+  // Persist to config (fire and forget)
+  updateConfig({ view: { mode } });
+});
+
+// Toggle between timeline/day view and month view
+export const toggleMonthViewAtom = atom(null, (get, set) => {
+  const current = get(viewModeAtom);
+  set(setViewModeAtom, current === "month" ? "day" : "month");
 });
 
 // Toggle between 1 and 3 column view
@@ -986,6 +1017,15 @@ export const executeCommandAtom = atom(null, (get, set) => {
     case "toggleColumns":
       set(toggleColumnsAtom);
       break;
+    case "toggleMonthView":
+      set(toggleMonthViewAtom);
+      break;
+    case "setMonthView":
+      set(setViewModeAtom, "month");
+      break;
+    case "setDayView":
+      set(setViewModeAtom, "day");
+      break;
     case "setColumns":
       if (cmd.args) {
         const count = parseInt(cmd.args, 10);
@@ -1054,6 +1094,7 @@ export const gotoDateAtom = atom(null, async (get, set, dateString: string) => {
     const targetDay = parsed.date.startOf("day");
     set(selectedDayAtom, targetDay);
     set(viewAnchorDayAtom, targetDay);
+    set(viewModeAtom, "day");
     set(focusAtom, "timeline");
     set(showMessageAtom, { text: `Jumped to ${targetDay.toFormat("EEEE, MMMM d, yyyy")}` });
   } else {
@@ -1063,6 +1104,7 @@ export const gotoDateAtom = atom(null, async (get, set, dateString: string) => {
       const targetDay = iso.startOf("day");
       set(selectedDayAtom, targetDay);
       set(viewAnchorDayAtom, targetDay);
+      set(viewModeAtom, "day");
       set(focusAtom, "timeline");
       set(showMessageAtom, { text: `Jumped to ${targetDay.toFormat("EEEE, MMMM d, yyyy")}` });
     } else {
@@ -1839,6 +1881,7 @@ export const selectSearchResultAtom = atom(null, (get, set) => {
   
   // Select the event
   set(selectedEventIdAtom, event.id);
+  set(viewModeAtom, "day");
   
   // Return to timeline (search is inline, no overlay to pop)
   set(focusAtom, "timeline");

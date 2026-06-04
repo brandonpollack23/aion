@@ -8,7 +8,7 @@ import { Box, Text, Input, Keybind, Portal } from "@semos-labs/glyph";
 import { useSetAtom } from "jotai";
 import { DateTime } from "luxon";
 import { popOverlayAtom } from "../state/actions.ts";
-import { selectedDayAtom, viewAnchorDayAtom, focusAtom } from "../state/atoms.ts";
+import { selectedDayAtom, viewAnchorDayAtom, focusAtom, viewModeAtom } from "../state/atoms.ts";
 import { parseNaturalDate } from "../domain/naturalDate.ts";
 import { theme } from "./theme.ts";
 
@@ -18,6 +18,7 @@ export function GotoDateDialog() {
   const setSelectedDay = useSetAtom(selectedDayAtom);
   const setViewAnchor = useSetAtom(viewAnchorDayAtom);
   const setFocus = useSetAtom(focusAtom);
+  const setViewMode = useSetAtom(viewModeAtom);
 
   // Parse input and get preview
   const parsed = useMemo(() => {
@@ -82,6 +83,7 @@ export function GotoDateDialog() {
       const targetDay = parsed.date.startOf("day");
       setSelectedDay(targetDay);
       setViewAnchor(targetDay);
+      setViewMode("day");
       setFocus("timeline");
     }
     popOverlay();

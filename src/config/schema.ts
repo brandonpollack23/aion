@@ -82,8 +82,11 @@ const GoogleSchema = z.object({
 }).default({});
 
 // View configuration
+const ViewModeSchema = z.enum(["day", "month"]).default("day");
+
 const ViewSchema = z.object({
   columns: z.number().min(1).max(5).default(1),
+  mode: ViewModeSchema,
 }).default({});
 
 // CalDAV account configuration (stored in config.toml, not accounts.json)

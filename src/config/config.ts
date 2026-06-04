@@ -40,6 +40,10 @@ declined = "red"
 tentative = "yellow"
 needsAction = "blackBright"
 
+[view]
+columns = 1
+mode = "day"
+
 # ===== CalDAV Accounts =====
 # Add CalDAV calendar accounts (iCloud, Fastmail, Nextcloud, etc.)
 # Use :caldav in the app to add accounts interactively.
@@ -108,8 +112,12 @@ export async function createDefaultConfig(): Promise<void> {
   }
 }
 
+type ConfigUpdates = Omit<Partial<Config>, "view"> & {
+  view?: Partial<Config["view"]>;
+};
+
 // Update a specific config value and save to disk
-export async function updateConfig(updates: Partial<Config>): Promise<void> {
+export async function updateConfig(updates: ConfigUpdates): Promise<void> {
   const current = getConfig();
   
   // Deep merge updates
@@ -157,7 +165,7 @@ export async function saveCalDAVAccountToConfig(account: CalDAVAccount): Promise
     updated.push(account);
   }
 
-  await updateConfig({ caldav: updated } as Partial<Config>);
+  await updateConfig({ caldav: updated });
   appLogger.info(`CalDAV account saved to config: ${account.email}`);
 }
 
@@ -167,6 +175,6 @@ export async function saveCalDAVAccountToConfig(account: CalDAVAccount): Promise
 export async function removeCalDAVAccountFromConfig(email: string): Promise<void> {
   const config = getConfig();
   const updated = config.caldav.filter((a) => a.email !== email);
-  await updateConfig({ caldav: updated } as Partial<Config>);
+  await updateConfig({ caldav: updated });
   appLogger.info(`CalDAV account removed from config: ${email}`);
 }

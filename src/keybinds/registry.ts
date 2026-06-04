@@ -20,6 +20,7 @@ export const KEYBIND_REGISTRY: Record<KeybindScope, KeybindDef[]> = {
     { key: "a", display: "a", description: "Toggle all-day events", action: "toggleAllDay", command: "allday" },
     { key: "shift+c", display: "C", description: "Toggle calendars sidebar", action: "toggleCalendars", command: "calendars" },
     { key: "3", display: "3", description: "Toggle 3-day view", action: "toggleColumns", command: "3day" },
+    { key: "shift+m", display: "M", description: "Toggle month view", action: "toggleMonthView" },
     { key: "ctrl+g", display: "Ctrl+g", description: "Go to date", action: "openGoto", command: "goto" },
     { key: "ctrl+m", display: "Ctrl+m", description: "Meet with...", action: "openMeetWith", command: "meet" },
     { key: "escape", display: "Esc", description: "Close overlay / go back", action: "popOverlay" },
@@ -35,6 +36,8 @@ export const KEYBIND_REGISTRY: Record<KeybindScope, KeybindDef[]> = {
     { key: "", display: "", description: "Upgrade permissions (grant new scopes)", action: "upgrade", command: "upgrade" },
     { key: "", display: "", description: "Add CalDAV account (iCloud, Fastmail, Nextcloud...)", action: "caldavLogin", command: "caldav" },
     { key: "", display: "", description: "Show message log", action: "messages", command: "messages" },
+    { key: "", display: "", description: "Show month view", action: "setMonthView", command: "month" },
+    { key: "", display: "", description: "Show day view", action: "setDayView", command: "day" },
   ],
 
   calendars: [
@@ -78,6 +81,29 @@ export const KEYBIND_REGISTRY: Record<KeybindScope, KeybindDef[]> = {
     { key: "shift+d", display: "D", description: "Delete event", action: "deleteEvent", command: "delete" },
     { key: ":", display: ":", description: "Open command bar", action: "openCommand" },
     { key: "`", display: "`", description: "Switch to days sidebar", action: "toggleFocus" },
+  ],
+
+  month: [
+    { key: "h", display: "h / ←", description: "Previous day", action: "prevDay" },
+    { key: "left", display: "h / ←", description: "Previous day", action: "prevDay" },
+    { key: "l", display: "l / →", description: "Next day", action: "nextDay" },
+    { key: "right", display: "l / →", description: "Next day", action: "nextDay" },
+    { key: "k", display: "k / ↑", description: "Previous week", action: "prevWeek" },
+    { key: "up", display: "k / ↑", description: "Previous week", action: "prevWeek" },
+    { key: "j", display: "j / ↓", description: "Next week", action: "nextWeek" },
+    { key: "down", display: "j / ↓", description: "Next week", action: "nextWeek" },
+    { key: "shift+h", display: "H", description: "Previous month", action: "prevMonth" },
+    { key: "pageup", display: "PgUp", description: "Previous month", action: "prevMonth" },
+    { key: "shift+l", display: "L", description: "Next month", action: "nextMonth" },
+    { key: "pagedown", display: "PgDn", description: "Next month", action: "nextMonth" },
+    { key: "shift+g", display: "G", description: "Last day of month", action: "lastDay" },
+    { key: "tab", display: "Tab", description: "Next event in day", action: "nextEvent" },
+    { key: "shift+tab", display: "Shift+Tab", description: "Previous event in day", action: "prevEvent" },
+    { key: "n", display: "n", description: "Jump to today", action: "jumpToNow", command: "today" },
+    { key: "return", display: "Enter", description: "Open details or day view", action: "openSelection" },
+    { key: "space", display: "Space", description: "Open details or day view", action: "openSelection" },
+    { key: "e", display: "e", description: "Edit event", action: "editEvent" },
+    { key: "shift+d", display: "D", description: "Delete event", action: "deleteEvent" },
   ],
 
   details: [
@@ -156,6 +182,7 @@ export function getKeybindsForHelp(context: FocusContext): { title: string; keyb
     confirm: "Confirm Dialog",
     notifications: "Notifications",
     search: "Search",
+    month: "Month View",
   };
 
   // Add context-specific keybinds

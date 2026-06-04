@@ -1,7 +1,6 @@
 import React, { useMemo, useEffect, useRef } from "react";
 import { Box } from "@semos-labs/glyph";
 import { useAtomValue, useSetAtom } from "jotai";
-import { CalendarsSidebar } from "./CalendarsSidebar.tsx";
 import { DaysSidebar } from "./DaysSidebar.tsx";
 import { TimelineColumn } from "./TimelineColumn.tsx";
 import { 
@@ -91,7 +90,6 @@ export function DayView() {
         clip: true,
       }}
     >
-      <CalendarsSidebar />
       <DaysSidebar />
       
       {/* Render timeline columns */}

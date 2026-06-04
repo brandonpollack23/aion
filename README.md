@@ -257,6 +257,7 @@ Use `j`/`k` to move through events, `h`/`l` to switch panes, `Enter` to view det
 | `G`       | Jump to last item                         |
 | `n`       | Jump to now (timeline only)               |
 | `Ctrl+G`  | Go to date (natural language)             |
+| `M`       | Toggle month view                         |
 
 ### Events
 
@@ -293,6 +294,7 @@ Use `j`/`k` to move through events, `h`/`l` to switch panes, `Enter` to view det
 | Key     | Action                                    |
 | ------- | ----------------------------------------- |
 | `3`     | Toggle between 1 and 3 column view        |
+| `M`     | Toggle month view                         |
 | `` ` `` | Cycle focus (Calendars → Days → Timeline) |
 
 ### General
@@ -357,6 +359,8 @@ Open the command palette with `:` and type a command:
 | Command       | Action                        |
 | ------------- | ----------------------------- |
 | `columns <n>` | Set column count (1, 3, or 5) |
+| `month`       | Show month view               |
+| `day`         | Show day view                 |
 
 ### General
 
@@ -594,6 +598,7 @@ You can override XDG paths with environment variables:
 - [x] Recurring event creation/editing
 - [x] Search events by title/description
 - [x] Multi-column day view (1, 3, or 5 columns)
+- [x] Month view
 - [x] Column navigation with h/l arrows
 - [x] Persistent view settings
 - [x] Command auto-fill (Ctrl+Y)
@@ -603,10 +608,6 @@ You can override XDG paths with environment variables:
 - [x] CalDAV support (iCloud, Fastmail, Nextcloud, Radicale, etc.)
 - [x] `password_command` for secure credential storage
 - [x] Native desktop notifications for invites and provider reminders
-
-### 🚧 In Progress
-
-- [ ] Month view
 
 ### 📋 Planned
 

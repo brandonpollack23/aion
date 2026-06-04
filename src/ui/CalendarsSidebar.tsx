@@ -13,6 +13,7 @@ import {
   selectedCalendarIndexAtom,
   calendarsByAccountAtom,
   focusAtom,
+  viewModeAtom,
   calendarColorMapAtom,
   getCalendarColor,
   type CalendarInfo,
@@ -124,6 +125,7 @@ export function CalendarsSidebar() {
   const [loaded, setLoaded] = useAtom(enabledCalendarsLoadedAtom);
   const [selectedIndex, setSelectedIndex] = useAtom(selectedCalendarIndexAtom);
   const [focus, setFocus] = useAtom(focusAtom);
+  const viewMode = useAtomValue(viewModeAtom);
   const setSidebarVisible = useSetAtom(calendarSidebarVisibleAtom);
   
   const isFocused = focus === "calendars";
@@ -211,8 +213,8 @@ export function CalendarsSidebar() {
   
   handlersRef.current.close = useCallback(() => {
     setSidebarVisible(false);
-    setFocus("days");
-  }, [setSidebarVisible, setFocus]);
+    setFocus(viewMode === "month" ? "month" : "days");
+  }, [setSidebarVisible, setFocus, viewMode]);
   
   if (!isVisible) {
     return null;

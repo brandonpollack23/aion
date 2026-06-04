@@ -12,6 +12,7 @@ import {
   newEventAtom,
   openSearchAtom,
   toggleColumnsAtom,
+  toggleMonthViewAtom,
 } from "../state/actions.ts";
 import { KEYBIND_REGISTRY } from "../keybinds/registry.ts";
 
@@ -36,6 +37,7 @@ export function KeyboardHandler() {
   const newEvent = useSetAtom(newEventAtom);
   const openSearch = useSetAtom(openSearchAtom);
   const toggleColumns = useSetAtom(toggleColumnsAtom);
+  const toggleMonthView = useSetAtom(toggleMonthViewAtom);
   
   const isHelpOpen = topOverlay?.kind === "help";
   const isNotificationsOpen = topOverlay?.kind === "notifications";
@@ -47,6 +49,7 @@ export function KeyboardHandler() {
   const newEventKey = getKeyForAction("global", "newEvent");
   const escapeKey = getKeyForAction("global", "popOverlay");
   const toggleColumnsKey = getKeyForAction("global", "toggleColumns");
+  const toggleMonthViewKey = getKeyForAction("global", "toggleMonthView");
   
   return (
     <>
@@ -78,6 +81,11 @@ export function KeyboardHandler() {
       {/* Toggle 3-day view - from registry */}
       {toggleColumnsKey && !hasOverlay && (
         <Keybind keypress={toggleColumnsKey} onPress={() => toggleColumns()} priority />
+      )}
+
+      {/* Toggle month view - from registry */}
+      {toggleMonthViewKey && !hasOverlay && (
+        <Keybind keypress={toggleMonthViewKey} onPress={() => toggleMonthView()} />
       )}
     </>
   );
