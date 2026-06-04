@@ -32,6 +32,7 @@ import {
   isLoggedInAtom,
   enabledCalendarsAtom,
   enabledCalendarsLoadedAtom,
+  viewModeAtom,
 } from "../state/atoms.ts";
 import {
   loadEventsAtom,
