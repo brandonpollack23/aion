@@ -94,6 +94,7 @@ export const KEYBIND_REGISTRY: Record<KeybindScope, KeybindDef[]> = {
   dialog: [
     { key: "tab", display: "Tab", description: "Next field", action: "nextField" },
     { key: "shift+tab", display: "Shift+Tab", description: "Previous field", action: "prevField" },
+    { key: "ctrl+e", display: "Ctrl+e", description: "Edit focused text field in $VISUAL/$EDITOR", action: "externalEdit" },
     { key: "escape", display: "Esc", description: "Cancel and close", action: "cancel" },
   ],
 

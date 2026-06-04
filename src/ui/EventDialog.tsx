@@ -29,12 +29,13 @@ import {
   calendarsByAccountAtom,
   type CalendarInfo,
 } from "../state/atoms.ts";
-import { popOverlayAtom, saveEventAtom } from "../state/actions.ts";
+import { popOverlayAtom, saveEventAtom, showMessageAtom } from "../state/actions.ts";
 import type { GCalEvent, EventType } from "../domain/gcalEvent.ts";
 import { WeekdayPicker } from "./WeekdayPicker.tsx";
 import { isAllDay as checkIsAllDay } from "../domain/gcalEvent.ts";
 import { parseTimeObject, toTimeObject, getLocalTimezone } from "../domain/time.ts";
 import { parseNaturalDate, formatParsedPreview, type ParsedDateTime } from "../domain/naturalDate.ts";
+import { editTextInExternalEditor, ExternalEditorError } from "../lib/externalEditor.ts";
 import {
   type RecurrenceRule,
   type Frequency,
@@ -95,7 +96,7 @@ function DialogKeybinds({
 }
 
 export function EventDialog() {
-  const { rows: terminalHeight } = useApp();
+  const { rows: terminalHeight, forceRedraw } = useApp();
   const [dialogEvent, setDialogEvent] = useAtom(dialogEventAtom);
   const isEditMode = useAtomValue(isEditModeAtom);
   const tz = useAtomValue(timezoneAtom);
@@ -103,6 +104,7 @@ export function EventDialog() {
   const calendarColorMap = useAtomValue(calendarColorMapAtom);
   const pop = useSetAtom(popOverlayAtom);
   const save = useSetAtom(saveEventAtom);
+  const showMessage = useSetAtom(showMessageAtom);
 
   // Calculate max dialog height (80% of screen)
   const maxDialogHeight = Math.floor(terminalHeight * 0.8);
@@ -336,6 +338,48 @@ export function EventDialog() {
     return false;
   }, [handleSave]);
 
+  const editTextField = useCallback(async (
+    value: string,
+    applyValue: (value: string) => void,
+    options: { multiline?: boolean; extension?: string } = {},
+  ) => {
+    try {
+      const edited = await editTextInExternalEditor(value, {
+        extension: options.extension ?? (options.multiline ? ".md" : ".txt"),
+        onResume: forceRedraw,
+      });
+      const normalized = options.multiline
+        ? edited.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+        : edited.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\s*\n\s*/g, " ").trim();
+      applyValue(normalized);
+    } catch (err) {
+      const message = err instanceof ExternalEditorError && err.code === "missing-editor"
+        ? "Set VISUAL or EDITOR to use ^E"
+        : `Editor failed: ${err instanceof Error ? err.message : err}`;
+      showMessage({
+        text: message,
+        type: err instanceof ExternalEditorError && err.code === "missing-editor" ? "warning" : "error",
+        autoDismiss: 4000,
+      });
+    }
+  }, [forceRedraw, showMessage]);
+
+  const handleTextInputKeyPress = useCallback((
+    key: { name?: string; ctrl?: boolean },
+    value: string,
+    applyValue: (value: string) => void,
+    options: { multiline?: boolean; extension?: string } = {},
+  ) => {
+    if (handleInputKeyPress(key)) {
+      return true;
+    }
+    if (key.name === "e" && key.ctrl) {
+      void editTextField(value, applyValue, options);
+      return true;
+    }
+    return false;
+  }, [editTextField, handleInputKeyPress]);
+
   const addAttendee = () => {
     const email = attendeesInput.trim();
     if (email && email.includes("@") && !attendees.includes(email)) {
@@ -443,6 +487,7 @@ export function EventDialog() {
                 {isEditMode ? "Edit Event" : "New Event"}
               </Text>
               <Text style={{ color: theme.text.dim, dim: true }}>^S save</Text>
+              <Text style={{ color: theme.text.dim, dim: true }}>^E edit</Text>
             </Box>
 
             {/* Form fields - scrollable */}
@@ -458,7 +503,7 @@ export function EventDialog() {
                       placeholder="Event title"
                       style={{ ...inputStyle }}
                       focusedStyle={focusedInputStyle}
-                      onKeyPress={handleInputKeyPress}
+                      onKeyPress={(key) => handleTextInputKeyPress(key, summary, setSummary)}
                     />
                   </Box>
                 </Box>
@@ -544,8 +589,7 @@ export function EventDialog() {
                         value={whenInput}
                         onChange={handleWhenChange}
                         onKeyPress={(key) => {
-                          if (key.name === "s" && key.ctrl) {
-                            handleSave();
+                          if (handleTextInputKeyPress(key, whenInput, handleWhenChange)) {
                             return true;
                           }
                           if (key.name === "return" && whenPreview) {
@@ -629,7 +673,7 @@ export function EventDialog() {
                       placeholder="Add location"
                       style={{ ...inputStyle }}
                       focusedStyle={focusedInputStyle}
-                      onKeyPress={handleInputKeyPress}
+                      onKeyPress={(key) => handleTextInputKeyPress(key, location, setLocation)}
                     />
                   </Box>
                 </Box>
@@ -642,8 +686,7 @@ export function EventDialog() {
                       value={attendeesInput}
                       onChange={setAttendeesInput}
                       onKeyPress={(key) => {
-                        if (key.name === "s" && key.ctrl) {
-                          handleSave();
+                        if (handleTextInputKeyPress(key, attendeesInput, setAttendeesInput)) {
                           return true;
                         }
                         if (key.name === "return" && attendeesInput.trim()) {
@@ -683,7 +726,7 @@ export function EventDialog() {
                       placeholder="Add notes"
                       style={{ ...inputStyle }}
                       focusedStyle={focusedInputStyle}
-                      onKeyPress={handleInputKeyPress}
+                      onKeyPress={(key) => handleTextInputKeyPress(key, description, setDescription, { multiline: true })}
                       multiline
                     />
                   </Box>

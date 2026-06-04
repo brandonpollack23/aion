@@ -260,13 +260,14 @@ Use `j`/`k` to move through events, `h`/`l` to switch panes, `Enter` to view det
 
 ### Events
 
-| Key               | Action                         |
-| ----------------- | ------------------------------ |
-| `Enter` / `Space` | Open event details             |
-| `e`               | Edit event                     |
-| `D`               | Delete event                   |
-| `Ctrl+N`          | Create new event               |
-| `Ctrl+M`          | Meet with... (find free slots) |
+| Key               | Action                                                 |
+| ----------------- | ------------------------------------------------------ |
+| `Enter` / `Space` | Open event details                                     |
+| `e`               | Edit event                                             |
+| `D`               | Delete event                                           |
+| `Ctrl+N`          | Create new event                                       |
+| `Ctrl+M`          | Meet with... (find free slots)                         |
+| `Ctrl+E`          | Edit focused event text field in `$VISUAL` / `$EDITOR` |
 
 ### Event Details
 
