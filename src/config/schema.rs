@@ -247,6 +247,10 @@ pub struct CalDAVAccount {
     pub password_command: Option<String>,
 }
 
+fn default_hidden_calendars() -> std::collections::HashSet<String> {
+    std::collections::HashSet::new()
+}
+
 fn default_notifications_enabled() -> bool {
     true
 }
@@ -275,4 +279,6 @@ pub struct Config {
     pub caldav: Vec<CalDAVAccount>,
     #[serde(default)]
     pub notifications: NotificationsConfig,
+    #[serde(rename = "hiddenCalendars", default = "default_hidden_calendars")]
+    pub hidden_calendars: std::collections::HashSet<String>,
 }

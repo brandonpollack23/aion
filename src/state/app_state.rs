@@ -134,6 +134,7 @@ impl AppState {
         let today = Local::now().date_naive();
         let column_count = config.view.columns.min(5).max(1);
         let view_mode = config.view.view_mode.clone();
+        let hidden_calendars = config.hidden_calendars.clone();
 
         Self {
             config,
@@ -152,7 +153,7 @@ impl AppState {
             calendars: Vec::new(),
             calendar_sidebar_visible: false,
             selected_calendar_index: 0,
-            disabled_calendars: HashSet::new(),
+            disabled_calendars: hidden_calendars,
             calendar_sidebar_scroll: 0,
             calendar_sidebar_height: std::cell::Cell::new(0),
             overlay_stack: Vec::new(),

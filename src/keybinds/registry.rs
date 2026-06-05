@@ -860,9 +860,12 @@ fn toggle_calendar(app: &mut AppState) {
         let key = cal.key.clone();
         if app.disabled_calendars.contains(&key) {
             app.disabled_calendars.remove(&key);
+            app.config.hidden_calendars.remove(&key);
         } else {
-            app.disabled_calendars.insert(key);
+            app.disabled_calendars.insert(key.clone());
+            app.config.hidden_calendars.insert(key);
         }
+        let _ = crate::config::loader::save_config(&app.config);
     }
 }
 
