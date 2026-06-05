@@ -48,7 +48,15 @@ fn run_migrations(conn: &Connection) -> Result<()> {
             calendar_id TEXT,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-        );",
+        );
+        CREATE INDEX IF NOT EXISTS idx_events_start
+            ON events(COALESCE(start_date_time, start_date));
+        CREATE INDEX IF NOT EXISTS idx_events_end
+            ON events(COALESCE(end_date_time, end_date));
+        CREATE INDEX IF NOT EXISTS idx_events_calendar
+            ON events(account_email, calendar_id);
+        CREATE INDEX IF NOT EXISTS idx_events_status
+            ON events(status);",
     )?;
     Ok(())
 }

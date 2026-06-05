@@ -7,7 +7,7 @@ use crate::auth::tokens::AccountInfo;
 use crate::config::schema::{Config, ViewMode};
 use crate::domain::event::{CalEvent, ResponseStatus};
 use crate::domain::layout::{layout_day, DayLayout};
-use crate::domain::time::{get_days_range, get_local_timezone};
+use crate::domain::time::{get_days_range, get_event_end, get_local_timezone};
 use crate::state::caldav_dialog::CalDavDialogState;
 use crate::state::dialog::DialogState;
 use crate::state::focus::FocusContext;
@@ -504,6 +504,7 @@ impl AppState {
 
     /// Events where self has not yet responded (RSVP = needsAction).
     pub fn pending_invites(&self) -> Vec<&CalEvent> {
+        let now_utc = chrono::Utc::now().naive_utc();
         let mut invites: Vec<&CalEvent> = self
             .events
             .values()
@@ -514,6 +515,10 @@ impl AppState {
             .filter(|e| {
                 self.disabled_calendars.is_empty()
                     || !self.disabled_calendars.contains(&e.calendar_key())
+            })
+            .filter(|e| {
+                get_event_end(e, &self.timezone)
+                    .map_or(true, |end| end.naive_utc() >= now_utc)
             })
             .collect();
         invites.sort_by(|a, b| {
