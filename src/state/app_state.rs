@@ -65,6 +65,7 @@ pub struct AppState {
     pub recurrence_scope: RecurrenceScope,
     // If a pending action requires recurrence confirmation, store its kind here
     pub pending_confirm_is_delete: bool,
+    pub pending_rsvp_status: Option<String>,
 
     // Command bar
     pub command_input: String,
@@ -155,6 +156,7 @@ impl AppState {
             overlay_stack: Vec::new(),
             recurrence_scope: RecurrenceScope::This,
             pending_confirm_is_delete: false,
+            pending_rsvp_status: None,
             command_input: String::new(),
             command_selected_index: 0,
             command_history: Vec::new(),

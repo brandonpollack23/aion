@@ -426,14 +426,19 @@ fn handle_details_input(app: &mut AppState, key: KeyEvent) {
 
 fn handle_confirm_input(app: &mut AppState, key: KeyEvent) {
     let no_mods = key.modifiers == KeyModifiers::NONE;
+    let is_rsvp = app.pending_rsvp_status.is_some();
 
     match key.code {
-        KeyCode::Esc => app.pop_overlay(),
+        KeyCode::Esc => {
+            app.pending_rsvp_status = None;
+            app.pop_overlay();
+        }
 
         // j / ↓: cycle scope forward
         KeyCode::Char('j') | KeyCode::Down if no_mods => {
             app.recurrence_scope = match app.recurrence_scope {
                 RecurrenceScope::This => RecurrenceScope::Following,
+                RecurrenceScope::Following if is_rsvp => RecurrenceScope::Following,
                 RecurrenceScope::Following => RecurrenceScope::All,
                 RecurrenceScope::All => RecurrenceScope::All,
             };
@@ -453,9 +458,12 @@ fn handle_confirm_input(app: &mut AppState, key: KeyEvent) {
             let id = app.selected_event_id.clone();
             let is_delete = app.pending_confirm_is_delete;
             let scope = app.recurrence_scope.clone();
+            let rsvp_status = app.pending_rsvp_status.take();
             app.pop_overlay();
             if let Some(id) = id {
-                if is_delete {
+                if let Some(status) = rsvp_status {
+                    apply_rsvp(app, &id, &scope, &status);
+                } else if is_delete {
                     apply_delete(app, &id, &scope);
                 }
                 // Phase 3: edit with scope handled similarly
@@ -1192,26 +1200,106 @@ fn rsvp_from_details(app: &mut AppState, status: &str) {
         None => return,
     };
 
-    // Update in-memory immediately for responsiveness
-    if let Some(ev) = app.events.get_mut(&id) {
+    let is_recurring = app.events.get(&id).map_or(false, |e| e.is_recurring());
+
+    if is_recurring {
+        app.pending_rsvp_status = Some(status.to_string());
+        app.recurrence_scope = RecurrenceScope::This;
+        let prev = app.focus.clone();
+        app.push_overlay(Overlay {
+            kind: OverlayKind::Confirm,
+            prev_focus: Some(prev),
+        });
+        return;
+    }
+
+    apply_rsvp_single(app, &id, status);
+}
+
+fn apply_rsvp_single(app: &mut AppState, id: &str, status: &str) {
+    use crate::domain::event::ResponseStatus;
+    let rs = match status {
+        "accepted" => ResponseStatus::Accepted,
+        "declined" => ResponseStatus::Declined,
+        "tentative" => ResponseStatus::Tentative,
+        _ => ResponseStatus::NeedsAction,
+    };
+    if let Some(ev) = app.events.get_mut(id) {
         if let Some(ref mut attendees_mut) = ev.attendees {
             for a in attendees_mut.iter_mut() {
                 if a.is_self == Some(true) {
-                    a.response_status = Some(match status {
-                        "accepted" => crate::domain::event::ResponseStatus::Accepted,
-                        "declined" => crate::domain::event::ResponseStatus::Declined,
-                        "tentative" => crate::domain::event::ResponseStatus::Tentative,
-                        _ => crate::domain::event::ResponseStatus::NeedsAction,
-                    });
+                    a.response_status = Some(rs.clone());
                 }
             }
         }
     }
-
     app.show_message(crate::state::message::Message::info(format!(
         "RSVP: {} (will sync on next background sync)",
         status
     )));
+}
+
+fn apply_rsvp(app: &mut AppState, id: &str, scope: &RecurrenceScope, status: &str) {
+    use crate::domain::event::ResponseStatus;
+    let rs = match status {
+        "accepted" => ResponseStatus::Accepted,
+        "declined" => ResponseStatus::Declined,
+        "tentative" => ResponseStatus::Tentative,
+        _ => ResponseStatus::NeedsAction,
+    };
+
+    match scope {
+        RecurrenceScope::This => {
+            apply_rsvp_single(app, id, status);
+        }
+        RecurrenceScope::Following | RecurrenceScope::All => {
+            let recurring_id = app.events.get(id).and_then(|e| e.recurring_event_id.clone());
+            let base_start = app
+                .events
+                .get(id)
+                .and_then(|e| e.start.date_time.clone().or(e.start.date.clone()));
+
+            if let Some(ref rid) = recurring_id {
+                let rid = rid.clone();
+                let cutoff = base_start.unwrap_or_default();
+                let ids_to_update: Vec<String> = app
+                    .events
+                    .values()
+                    .filter(|e| {
+                        if e.recurring_event_id.as_deref() == Some(&rid) || e.id == id {
+                            let e_start = e
+                                .start
+                                .date_time
+                                .as_deref()
+                                .or(e.start.date.as_deref())
+                                .unwrap_or("");
+                            e_start >= cutoff.as_str()
+                        } else {
+                            false
+                        }
+                    })
+                    .map(|e| e.id.clone())
+                    .collect();
+
+                for eid in ids_to_update {
+                    apply_rsvp_single(app, &eid, status);
+                }
+                // Clear the "will sync" message and show a scoped one
+                let label = match rs {
+                    ResponseStatus::Accepted => "accepted",
+                    ResponseStatus::Declined => "declined",
+                    ResponseStatus::Tentative => "tentative",
+                    ResponseStatus::NeedsAction => "awaiting",
+                };
+                app.show_message(crate::state::message::Message::info(format!(
+                    "RSVP: {} for this and all future events (will sync on next background sync)",
+                    label
+                )));
+            } else {
+                apply_rsvp_single(app, id, status);
+            }
+        }
+    }
 }
 
 fn open_propose_time_dialog(app: &mut AppState, event: &crate::domain::event::CalEvent) {
@@ -1266,8 +1354,22 @@ fn rsvp_selected_notification(app: &mut AppState, status: &str) {
 
     let idx = app.notifications_selected_index.min(invites.len().saturating_sub(1));
     if let Some(id) = invites.get(idx).cloned() {
-        app.selected_event_id = Some(id);
-        rsvp_from_details(app, status);
+        app.selected_event_id = Some(id.clone());
+
+        let is_recurring = app.events.get(&id).map_or(false, |e| e.is_recurring());
+        if is_recurring {
+            // Push recurrence scope confirm on top of notifications overlay
+            app.pending_rsvp_status = Some(status.to_string());
+            app.recurrence_scope = RecurrenceScope::This;
+            let prev = app.focus.clone();
+            app.push_overlay(Overlay {
+                kind: OverlayKind::Confirm,
+                prev_focus: Some(prev),
+            });
+            return;
+        }
+
+        apply_rsvp_single(app, &id, status);
         // Clamp index if list shrinks
         let new_count = app.pending_invites().len();
         if new_count == 0 {

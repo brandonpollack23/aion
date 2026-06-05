@@ -11,10 +11,14 @@ use crate::state::overlay::RecurrenceScope;
 use crate::ui::layout_helpers::centered_fixed;
 
 pub fn render_confirm_modal(app: &AppState, frame: &mut Frame, area: Rect, is_delete: bool) {
-    let rect = centered_fixed(48, 9, area);
+    let is_rsvp = app.pending_rsvp_status.is_some();
+    let height = if is_rsvp { 8 } else { 9 };
+    let rect = centered_fixed(48, height, area);
     frame.render_widget(Clear, rect);
 
-    let title = if is_delete {
+    let title = if is_rsvp {
+        " RSVP recurring event "
+    } else if is_delete {
         " Delete recurring event "
     } else {
         " Edit recurring event "
@@ -35,26 +39,27 @@ pub fn render_confirm_modal(app: &AppState, frame: &mut Frame, area: Rect, is_de
 
     let scope = &app.recurrence_scope;
 
-    let lines = vec![
+    let mut lines = vec![
         Line::from(Span::styled(
             "Apply to:",
             Style::default().fg(app.theme.text_dim),
         )),
         Line::raw(""),
         scope_line(app, scope, RecurrenceScope::This, "This event only"),
-        scope_line(app, scope, RecurrenceScope::Following, "This and following"),
-        scope_line(app, scope, RecurrenceScope::All, "All in series"),
-        Line::raw(""),
-        Line::from(vec![
-            Span::styled(
-                "Enter",
-                Style::default().fg(app.theme.accent_primary),
-            ),
-            Span::styled(":continue  ", Style::default().fg(app.theme.text_dim)),
-            Span::styled("Esc", Style::default().fg(app.theme.accent_primary)),
-            Span::styled(":cancel", Style::default().fg(app.theme.text_dim)),
-        ]),
+        scope_line(app, scope, RecurrenceScope::Following, "This and all future"),
     ];
+
+    if !is_rsvp {
+        lines.push(scope_line(app, scope, RecurrenceScope::All, "All in series"));
+    }
+
+    lines.push(Line::raw(""));
+    lines.push(Line::from(vec![
+        Span::styled("Enter", Style::default().fg(app.theme.accent_primary)),
+        Span::styled(":continue  ", Style::default().fg(app.theme.text_dim)),
+        Span::styled("Esc", Style::default().fg(app.theme.accent_primary)),
+        Span::styled(":cancel", Style::default().fg(app.theme.text_dim)),
+    ]));
 
     frame.render_widget(Paragraph::new(lines), inner);
 }
