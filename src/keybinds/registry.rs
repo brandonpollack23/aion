@@ -36,11 +36,11 @@ pub async fn handle_key(
             false
         }
         FocusContext::Details => {
-            handle_details_input(app, key);
+            handle_details_input(app, key, tx);
             false
         }
         FocusContext::Confirm => {
-            handle_confirm_input(app, key);
+            handle_confirm_input(app, key, tx);
             false
         }
         FocusContext::Dialog => {
@@ -73,6 +73,10 @@ pub async fn handle_key(
         }
         FocusContext::MeetWith => {
             handle_meet_with_input(app, key, tx).await;
+            false
+        }
+        FocusContext::LoginPrompt => {
+            handle_login_prompt_input(app, key, tx);
             false
         }
         _ => {
@@ -288,6 +292,7 @@ async fn handle_navigation(
         KeyCode::Char(':') if no_mods => {
             app.focus = FocusContext::Command;
             app.command_input = String::new();
+            app.command_cursor = 0;
             app.command_selected_index = 0;
         }
 
@@ -375,7 +380,7 @@ fn initiate_delete(app: &mut AppState) {
     }
 }
 
-fn handle_details_input(app: &mut AppState, key: KeyEvent) {
+fn handle_details_input(app: &mut AppState, key: KeyEvent, tx: &UnboundedSender<AppEvent>) {
     let no_mods = key.modifiers == KeyModifiers::NONE;
     let shift = key.modifiers == KeyModifiers::SHIFT;
 
@@ -395,9 +400,9 @@ fn handle_details_input(app: &mut AppState, key: KeyEvent) {
         }
 
         // RSVP: y / n / m
-        KeyCode::Char('y') if no_mods => rsvp_from_details(app, "accepted"),
-        KeyCode::Char('n') if no_mods => rsvp_from_details(app, "declined"),
-        KeyCode::Char('m') if no_mods => rsvp_from_details(app, "tentative"),
+        KeyCode::Char('y') if no_mods => rsvp_from_details(app, "accepted", tx),
+        KeyCode::Char('n') if no_mods => rsvp_from_details(app, "declined", tx),
+        KeyCode::Char('m') if no_mods => rsvp_from_details(app, "tentative", tx),
 
         // p: propose new time
         KeyCode::Char('p') if no_mods => {
@@ -424,7 +429,7 @@ fn handle_details_input(app: &mut AppState, key: KeyEvent) {
     }
 }
 
-fn handle_confirm_input(app: &mut AppState, key: KeyEvent) {
+fn handle_confirm_input(app: &mut AppState, key: KeyEvent, tx: &UnboundedSender<AppEvent>) {
     let no_mods = key.modifiers == KeyModifiers::NONE;
     let is_rsvp = app.pending_rsvp_status.is_some();
 
@@ -462,7 +467,7 @@ fn handle_confirm_input(app: &mut AppState, key: KeyEvent) {
             app.pop_overlay();
             if let Some(id) = id {
                 if let Some(status) = rsvp_status {
-                    apply_rsvp(app, &id, &scope, &status);
+                    apply_rsvp(app, &id, &scope, &status, tx);
                 } else if is_delete {
                     apply_delete(app, &id, &scope);
                 }
@@ -525,24 +530,113 @@ async fn handle_command_input(
     key: KeyEvent,
     tx: &UnboundedSender<AppEvent>,
 ) {
+    let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+    let alt = key.modifiers.contains(KeyModifiers::ALT);
+
     match key.code {
         KeyCode::Esc => {
             app.focus = FocusContext::Timeline;
             app.command_input.clear();
+            app.command_cursor = 0;
+            app.command_completion_query = None;
         }
         KeyCode::Enter => {
             let cmd = app.command_input.trim().to_string();
             execute_command(app, &cmd, tx);
             app.focus = FocusContext::Timeline;
             app.command_input.clear();
+            app.command_cursor = 0;
+            app.command_completion_query = None;
+        }
+        KeyCode::Backspace if ctrl => {
+            cmd_kill_word_backward(app);
+            app.command_completion_query = None;
         }
         KeyCode::Backspace => {
-            app.command_input.pop();
+            if app.command_cursor > 0 {
+                let byte_pos = char_to_byte(&app.command_input, app.command_cursor - 1);
+                let next_byte = char_to_byte(&app.command_input, app.command_cursor);
+                app.command_input.drain(byte_pos..next_byte);
+                app.command_cursor -= 1;
+            }
             app.command_selected_index = 0;
+            app.command_completion_query = None;
         }
-        KeyCode::Char(c) => {
-            app.command_input.push(c);
+        KeyCode::Delete | KeyCode::Char('d') if ctrl => {
+            // Ctrl+D: delete char forward
+            let len = app.command_input.chars().count();
+            if app.command_cursor < len {
+                let byte_pos = char_to_byte(&app.command_input, app.command_cursor);
+                let next_byte = char_to_byte(&app.command_input, app.command_cursor + 1);
+                app.command_input.drain(byte_pos..next_byte);
+            }
+        }
+        KeyCode::Char('a') if ctrl => {
+            app.command_cursor = 0;
+        }
+        KeyCode::Char('e') if ctrl => {
+            app.command_cursor = app.command_input.chars().count();
+        }
+        KeyCode::Char('b') if ctrl => {
+            if app.command_cursor > 0 {
+                app.command_cursor -= 1;
+            }
+        }
+        KeyCode::Char('f') if ctrl => {
+            let len = app.command_input.chars().count();
+            if app.command_cursor < len {
+                app.command_cursor += 1;
+            }
+        }
+        KeyCode::Char('b') if alt => {
+            app.command_cursor = cmd_word_start_backward(&app.command_input, app.command_cursor);
+        }
+        KeyCode::Char('f') if alt => {
+            app.command_cursor = cmd_word_end_forward(&app.command_input, app.command_cursor);
+        }
+        KeyCode::Char('k') if ctrl => {
+            // Kill to end of line
+            let byte_pos = char_to_byte(&app.command_input, app.command_cursor);
+            app.command_input.truncate(byte_pos);
+        }
+        KeyCode::Char('u') if ctrl => {
+            // Kill to beginning of line
+            let byte_pos = char_to_byte(&app.command_input, app.command_cursor);
+            app.command_input.drain(..byte_pos);
+            app.command_cursor = 0;
+        }
+        KeyCode::Char('w') if ctrl => {
+            cmd_kill_word_backward(app);
+        }
+        KeyCode::Left if alt => {
+            app.command_cursor = cmd_word_start_backward(&app.command_input, app.command_cursor);
+        }
+        KeyCode::Right if alt => {
+            app.command_cursor = cmd_word_end_forward(&app.command_input, app.command_cursor);
+        }
+        KeyCode::Left => {
+            if app.command_cursor > 0 {
+                app.command_cursor -= 1;
+            }
+        }
+        KeyCode::Right => {
+            let len = app.command_input.chars().count();
+            if app.command_cursor < len {
+                app.command_cursor += 1;
+            }
+        }
+        KeyCode::Home => {
+            app.command_cursor = 0;
+        }
+        KeyCode::End => {
+            app.command_cursor = app.command_input.chars().count();
+        }
+        KeyCode::Char(c) if !ctrl && !alt => {
+            let byte_pos = char_to_byte(&app.command_input, app.command_cursor);
+            app.command_input.insert(byte_pos, c);
+            app.command_cursor += 1;
             app.command_selected_index = 0;
+            app.command_completion_query = None;
         }
         KeyCode::Up => {
             let hist_len = app.command_history.len();
@@ -551,6 +645,7 @@ async fn handle_command_input(
                 let idx = hist_len - app.command_selected_index;
                 if let Some(h) = app.command_history.get(idx) {
                     app.command_input = h.clone();
+                    app.command_cursor = app.command_input.chars().count();
                 }
             }
         }
@@ -559,26 +654,106 @@ async fn handle_command_input(
                 app.command_selected_index -= 1;
                 if app.command_selected_index == 0 {
                     app.command_input.clear();
+                    app.command_cursor = 0;
                 } else {
                     let hist_len = app.command_history.len();
                     let idx = hist_len - app.command_selected_index;
                     if let Some(h) = app.command_history.get(idx) {
                         app.command_input = h.clone();
+                        app.command_cursor = app.command_input.chars().count();
                     }
                 }
             }
         }
-        KeyCode::Tab => {
-            // Fill first matching completion
-            let completions = crate::keybinds::commands::filter_commands(&app.command_input);
-            if let Some(cmd) = completions.first() {
-                let base = cmd.name.split_whitespace().next().unwrap_or(cmd.name);
-                app.command_input = base.to_string();
-                app.command_selected_index = 0;
-            }
+        KeyCode::Tab | KeyCode::Char('n') if ctrl || key.code == KeyCode::Tab => {
+            cmd_complete_next(app);
+        }
+        KeyCode::BackTab | KeyCode::Char('p') if ctrl || key.code == KeyCode::BackTab => {
+            cmd_complete_prev(app);
         }
         _ => {}
     }
+}
+
+fn char_to_byte(s: &str, char_idx: usize) -> usize {
+    s.char_indices()
+        .nth(char_idx)
+        .map(|(b, _)| b)
+        .unwrap_or(s.len())
+}
+
+fn cmd_word_start_backward(s: &str, cursor: usize) -> usize {
+    let chars: Vec<char> = s.chars().collect();
+    let mut pos = cursor;
+    // Skip whitespace
+    while pos > 0 && chars[pos - 1].is_whitespace() {
+        pos -= 1;
+    }
+    // Skip word chars
+    while pos > 0 && !chars[pos - 1].is_whitespace() {
+        pos -= 1;
+    }
+    pos
+}
+
+fn cmd_word_end_forward(s: &str, cursor: usize) -> usize {
+    let chars: Vec<char> = s.chars().collect();
+    let len = chars.len();
+    let mut pos = cursor;
+    // Skip whitespace
+    while pos < len && chars[pos].is_whitespace() {
+        pos += 1;
+    }
+    // Skip word chars
+    while pos < len && !chars[pos].is_whitespace() {
+        pos += 1;
+    }
+    pos
+}
+
+fn cmd_complete_next(app: &mut AppState) {
+    let query = app.command_completion_query.get_or_insert_with(|| app.command_input.clone()).clone();
+    let completions = crate::keybinds::commands::filter_commands(&query);
+    let count = completions.len();
+    if count == 0 {
+        return;
+    }
+    let idx = app.command_selected_index.min(count - 1);
+    if let Some(cmd) = completions.get(idx) {
+        let base = cmd.name.split_whitespace().next().unwrap_or(cmd.name);
+        app.command_input = base.to_string();
+        app.command_cursor = app.command_input.chars().count();
+        app.command_selected_index = (idx + 1) % count;
+    }
+}
+
+fn cmd_complete_prev(app: &mut AppState) {
+    let query = app.command_completion_query.get_or_insert_with(|| app.command_input.clone()).clone();
+    let completions = crate::keybinds::commands::filter_commands(&query);
+    let count = completions.len();
+    if count == 0 {
+        return;
+    }
+    let prev_idx = if app.command_selected_index == 0 {
+        count - 1
+    } else {
+        app.command_selected_index - 1
+    };
+    if let Some(cmd) = completions.get(prev_idx) {
+        let base = cmd.name.split_whitespace().next().unwrap_or(cmd.name);
+        app.command_input = base.to_string();
+        app.command_cursor = app.command_input.chars().count();
+        app.command_selected_index = prev_idx;
+    }
+}
+
+fn cmd_kill_word_backward(app: &mut AppState) {
+    let new_cursor = cmd_word_start_backward(&app.command_input, app.command_cursor);
+    let byte_start = char_to_byte(&app.command_input, new_cursor);
+    let byte_end = char_to_byte(&app.command_input, app.command_cursor);
+    app.command_input.drain(byte_start..byte_end);
+    app.command_cursor = new_cursor;
+    app.command_selected_index = 0;
 }
 
 fn get_google_credentials(app: &AppState) -> Option<(String, String)> {
@@ -785,6 +960,23 @@ fn execute_command(app: &mut AppState, cmd: &str, tx: &UnboundedSender<AppEvent>
         }
         "quit" | "q" => {
             app.focus = FocusContext::Timeline;
+        }
+        _ => {}
+    }
+}
+
+fn handle_login_prompt_input(
+    app: &mut AppState,
+    key: KeyEvent,
+    tx: &UnboundedSender<AppEvent>,
+) {
+    match key.code {
+        KeyCode::Char('y') | KeyCode::Char('Y') => {
+            app.pop_overlay();
+            cmd_login(app, tx);
+        }
+        KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+            app.pop_overlay();
         }
         _ => {}
     }
@@ -1194,7 +1386,7 @@ fn handle_accounts_input(
 
 // ── Phase 5: Helpers ──────────────────────────────────────────────────────────
 
-fn rsvp_from_details(app: &mut AppState, status: &str) {
+fn rsvp_from_details(app: &mut AppState, status: &str, tx: &UnboundedSender<AppEvent>) {
     let id = match app.selected_event_id.clone() {
         Some(id) => id,
         None => return,
@@ -1213,10 +1405,10 @@ fn rsvp_from_details(app: &mut AppState, status: &str) {
         return;
     }
 
-    apply_rsvp_single(app, &id, status);
+    apply_rsvp_single(app, &id, status, tx);
 }
 
-fn apply_rsvp_single(app: &mut AppState, id: &str, status: &str) {
+fn apply_rsvp_single(app: &mut AppState, id: &str, status: &str, tx: &UnboundedSender<AppEvent>) {
     use crate::domain::event::ResponseStatus;
     let rs = match status {
         "accepted" => ResponseStatus::Accepted,
@@ -1233,13 +1425,44 @@ fn apply_rsvp_single(app: &mut AppState, id: &str, status: &str) {
             }
         }
     }
+
+    // Eagerly push the RSVP to the API, then trigger a sync to confirm.
+    if let Some(ev) = app.events.get(id) {
+        if let (Some(account_email), Some(calendar_id)) =
+            (ev.account_email.clone(), ev.calendar_id.clone())
+        {
+            let event_id = id.to_owned();
+            let status_str = status.to_owned();
+            let attendees = ev.attendees.clone().unwrap_or_default();
+            let tx_clone = tx.clone();
+            let config = crate::config::loader::load_config();
+            let client_id = config.google.client_id.clone().unwrap_or_default();
+            let client_secret = config.google.client_secret.clone().unwrap_or_default();
+            tokio::spawn(async move {
+                let gcal = crate::api::gcal::GcalClient::new(client_id, client_secret);
+                match gcal
+                    .update_attendance(&account_email, &calendar_id, &event_id, &status_str, &attendees)
+                    .await
+                {
+                    Ok(()) => {
+                        tx_clone.send(AppEvent::RsvpComplete { event_id: event_id.clone() }).ok();
+                        tx_clone.send(AppEvent::TriggerSync).ok();
+                    }
+                    Err(e) => {
+                        tx_clone.send(AppEvent::RsvpError(e.to_string())).ok();
+                    }
+                }
+            });
+        }
+    }
+
     app.show_message(crate::state::message::Message::info(format!(
-        "RSVP: {} (will sync on next background sync)",
+        "RSVP: {} (syncing…)",
         status
     )));
 }
 
-fn apply_rsvp(app: &mut AppState, id: &str, scope: &RecurrenceScope, status: &str) {
+fn apply_rsvp(app: &mut AppState, id: &str, scope: &RecurrenceScope, status: &str, tx: &UnboundedSender<AppEvent>) {
     use crate::domain::event::ResponseStatus;
     let rs = match status {
         "accepted" => ResponseStatus::Accepted,
@@ -1250,7 +1473,7 @@ fn apply_rsvp(app: &mut AppState, id: &str, scope: &RecurrenceScope, status: &st
 
     match scope {
         RecurrenceScope::This => {
-            apply_rsvp_single(app, id, status);
+            apply_rsvp_single(app, id, status, tx);
         }
         RecurrenceScope::Following | RecurrenceScope::All => {
             let recurring_id = app.events.get(id).and_then(|e| e.recurring_event_id.clone());
@@ -1282,9 +1505,9 @@ fn apply_rsvp(app: &mut AppState, id: &str, scope: &RecurrenceScope, status: &st
                     .collect();
 
                 for eid in ids_to_update {
-                    apply_rsvp_single(app, &eid, status);
+                    apply_rsvp_single(app, &eid, status, tx);
                 }
-                // Clear the "will sync" message and show a scoped one
+                // Override the per-event messages with a scoped summary
                 let label = match rs {
                     ResponseStatus::Accepted => "accepted",
                     ResponseStatus::Declined => "declined",
@@ -1292,11 +1515,11 @@ fn apply_rsvp(app: &mut AppState, id: &str, scope: &RecurrenceScope, status: &st
                     ResponseStatus::NeedsAction => "awaiting",
                 };
                 app.show_message(crate::state::message::Message::info(format!(
-                    "RSVP: {} for this and all future events (will sync on next background sync)",
+                    "RSVP: {} for this and all future events (syncing…)",
                     label
                 )));
             } else {
-                apply_rsvp_single(app, id, status);
+                apply_rsvp_single(app, id, status, tx);
             }
         }
     }
@@ -1317,7 +1540,7 @@ fn open_propose_time_dialog(app: &mut AppState, event: &crate::domain::event::Ca
 async fn handle_notifications_input(
     app: &mut AppState,
     key: KeyEvent,
-    _tx: &UnboundedSender<AppEvent>,
+    tx: &UnboundedSender<AppEvent>,
 ) {
     let no_mods = key.modifiers == KeyModifiers::NONE;
 
@@ -1337,15 +1560,15 @@ async fn handle_notifications_input(
                 app.notifications_selected_index.saturating_sub(1);
         }
 
-        KeyCode::Char('y') if no_mods => rsvp_selected_notification(app, "accepted"),
-        KeyCode::Char('n') if no_mods => rsvp_selected_notification(app, "declined"),
-        KeyCode::Char('m') if no_mods => rsvp_selected_notification(app, "tentative"),
+        KeyCode::Char('y') if no_mods => rsvp_selected_notification(app, "accepted", tx),
+        KeyCode::Char('n') if no_mods => rsvp_selected_notification(app, "declined", tx),
+        KeyCode::Char('m') if no_mods => rsvp_selected_notification(app, "tentative", tx),
 
         _ => {}
     }
 }
 
-fn rsvp_selected_notification(app: &mut AppState, status: &str) {
+fn rsvp_selected_notification(app: &mut AppState, status: &str, tx: &UnboundedSender<AppEvent>) {
     let invites: Vec<String> = app
         .pending_invites()
         .into_iter()
@@ -1369,7 +1592,7 @@ fn rsvp_selected_notification(app: &mut AppState, status: &str) {
             return;
         }
 
-        apply_rsvp_single(app, &id, status);
+        apply_rsvp_single(app, &id, status, tx);
         // Clamp index if list shrinks
         let new_count = app.pending_invites().len();
         if new_count == 0 {

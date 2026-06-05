@@ -14,6 +14,7 @@ use crate::db::{connection::open_connection, events_repo::{delete_event as db_de
 use crate::keybinds::registry::handle_key;
 use crate::state::app_state::AppState;
 use crate::state::message::Message;
+use crate::state::overlay::{Overlay, OverlayKind};
 use crate::sync::background::{start_background_sync, trigger_sync_once, SyncResult};
 use crate::ui::app_view::render_app;
 
@@ -119,6 +120,17 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Resul
         if !app.accounts.is_empty() {
             app.is_syncing = true;
             start_background_sync(tx.clone(), id, secret);
+        } else {
+            // Credentials configured but no Google account logged in — prompt user
+            let has_google = app.accounts.iter().any(|a| {
+                a.account_type == crate::auth::tokens::AccountType::Google
+            });
+            if !has_google {
+                app.push_overlay(Overlay {
+                    kind: OverlayKind::LoginPrompt,
+                    prev_focus: None,
+                });
+            }
         }
     }
 

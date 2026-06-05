@@ -16,6 +16,7 @@ pub enum FocusContext {
     CalDavLogin,
     Messages,
     ProposeTime,
+    LoginPrompt,
 }
 
 impl Default for FocusContext {

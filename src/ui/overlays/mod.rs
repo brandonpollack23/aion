@@ -1,4 +1,5 @@
 pub mod accounts_dialog;
+pub mod login_prompt;
 pub mod caldav_login_dialog;
 pub mod confirm_modal;
 pub mod details_panel;

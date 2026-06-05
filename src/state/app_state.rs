@@ -69,7 +69,9 @@ pub struct AppState {
 
     // Command bar
     pub command_input: String,
+    pub command_cursor: usize,
     pub command_selected_index: usize,
+    pub command_completion_query: Option<String>,
     pub command_history: Vec<String>,
 
     // Search
@@ -158,7 +160,9 @@ impl AppState {
             pending_confirm_is_delete: false,
             pending_rsvp_status: None,
             command_input: String::new(),
+            command_cursor: 0,
             command_selected_index: 0,
+            command_completion_query: None,
             command_history: Vec::new(),
             search_query: String::new(),
             search_results: Vec::new(),

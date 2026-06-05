@@ -22,6 +22,7 @@ use crate::ui::overlays::meet_with_dialog::render_meet_with_dialog;
 use crate::ui::overlays::messages_dialog::render_messages_dialog;
 use crate::ui::overlays::notifications_panel::render_notifications_panel;
 use crate::ui::overlays::propose_time_dialog::render_propose_time_dialog;
+use crate::ui::overlays::login_prompt::render_login_prompt;
 use crate::ui::overlays::splash::render_splash;
 use crate::ui::search_view::render_search_view;
 use crate::ui::status_bar::render_status_bar;
@@ -47,7 +48,7 @@ pub fn render_app(app: &AppState, frame: &mut Frame) {
     // Status bar or command input
     if app.focus == FocusContext::Command {
         render_command_input(app, frame, chunks[2]);
-        render_command_completions(app, frame, chunks[2]);
+        render_command_completions(app, frame, area);
     } else {
         render_status_bar(app, frame, chunks[2]);
     }
@@ -74,6 +75,7 @@ pub fn render_app(app: &AppState, frame: &mut Frame) {
             OverlayKind::Dialog => render_event_dialog(app, frame, area),
             OverlayKind::Goto => render_goto_dialog(app, frame, area),
             OverlayKind::Messages => render_messages_dialog(app, frame, area),
+            OverlayKind::LoginPrompt => render_login_prompt(app, frame, area),
             OverlayKind::Accounts => render_accounts_dialog(app, frame, area),
             OverlayKind::CalDavLogin => render_caldav_login_dialog(app, frame, area),
             OverlayKind::Notifications => render_notifications_panel(app, frame, area),

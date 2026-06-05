@@ -20,6 +20,7 @@ pub enum OverlayKind {
     Accounts,
     CalDavLogin,
     Messages,
+    LoginPrompt,
 }
 
 impl OverlayKind {
@@ -36,6 +37,7 @@ impl OverlayKind {
             OverlayKind::Accounts => FocusContext::Accounts,
             OverlayKind::CalDavLogin => FocusContext::CalDavLogin,
             OverlayKind::Messages => FocusContext::Messages,
+            OverlayKind::LoginPrompt => FocusContext::LoginPrompt,
         }
     }
 }
