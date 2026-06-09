@@ -2,6 +2,9 @@
 name = "aion-calendar"
 version = "0.2.0"
 edition = "2021"
+description = "A terminal calendar and event manager"
+license = "MIT"
+repository = "https://github.com/brandonpollack23/aion"
 
 [[bin]]
 name = "aion-calendar"

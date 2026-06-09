@@ -26,7 +26,7 @@ jobs:
           key: ubuntu-latest-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Publish
-        run: cargo publish --no-verify
+        run: cargo publish --no-verify --allow-dirty
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
           AION_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
