@@ -1,6 +1,6 @@
 [package]
 name = "aion-calendar"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 description = "A terminal calendar and event manager"
 license = "MIT"
@@ -27,7 +27,10 @@ tracing-appender = "0.2"
 anyhow = "1"
 futures = "0.3"
 open = "5.3.5"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+reqwest = { version = "0.12", default-features = false, features = [
+  "rustls-tls",
+  "json",
+] }
 sha2 = "0.10"
 base64 = "0.22"
 rand = "0.8"
