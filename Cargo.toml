@@ -1,6 +1,6 @@
 [package]
 name = "aion-calendar"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 description = "A terminal calendar and event manager"
 license = "MIT"
@@ -40,4 +40,4 @@ uuid = { version = "1", features = ["v4"] }
 notify-rust = "4"
 
 [package.metadata.binstall]
-pkg-fmt = "tzst"
+pkg-fmt = "tzstd"
