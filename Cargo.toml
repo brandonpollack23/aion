@@ -1,10 +1,10 @@
 [package]
-name = "aion"
-version = "0.1.0"
+name = "aion-calendar"
+version = "0.2.0"
 edition = "2021"
 
 [[bin]]
-name = "aion"
+name = "aion-calendar"
 path = "src/main.rs"
 
 [dependencies]
@@ -32,3 +32,6 @@ url = "2"
 roxmltree = "0.20"
 uuid = { version = "1", features = ["v4"] }
 notify-rust = "4"
+
+[package.metadata.binstall]
+pkg-fmt = "tzst"

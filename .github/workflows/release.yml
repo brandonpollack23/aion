@@ -7,10 +7,6 @@ on:
 permissions:
   contents: write
 
-env:
-  GITHUB_REPO: semos-labs/aion
-  HOMEBREW_TAP: semos-labs/homebrew-tap
-
 jobs:
   build:
     name: Build (${{ matrix.target }})
@@ -20,17 +16,13 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact: aion-linux-x64
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
-            artifact: aion-linux-arm64
             cross: true
           - os: macos-latest
             target: x86_64-apple-darwin
-            artifact: aion-darwin-x64
           - os: macos-latest
             target: aarch64-apple-darwin
-            artifact: aion-darwin-arm64
 
     runs-on: ${{ matrix.os }}
 
@@ -43,7 +35,7 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install cross (Linux ARM64)
+      - name: Install cross (aarch64-unknown-linux-gnu)
         if: matrix.cross
         run: cargo install cross --git https://github.com/cross-rs/cross
 
@@ -72,88 +64,13 @@ jobs:
 
       - name: Package as .tar.zst
         run: |
-          cp target/${{ matrix.target }}/release/aion aion
-          chmod +x aion
-          tar -cf - aion | zstd -19 -o ${{ matrix.artifact }}.tar.zst
+          cp target/${{ matrix.target }}/release/aion-calendar aion-calendar
+          chmod +x aion-calendar
+          tar -cf - aion-calendar | zstd -19 -o aion-calendar-${{ matrix.target }}.tar.zst
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ matrix.artifact }}.tar.zst
+          files: aion-calendar-${{ matrix.target }}.tar.zst
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  update-homebrew:
-    name: Update Homebrew Tap
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Get version from release
-        id: version
-        run: |
-          VERSION=${{ github.event.release.tag_name }}
-          VERSION=${VERSION#v}
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "Version: ${VERSION}"
-
-      - name: Wait for release assets to be available
-        run: sleep 30
-
-      - name: Download and calculate SHA256 checksums
-        id: sha256
-        run: |
-          VERSION=${{ steps.version.outputs.version }}
-          BASE_URL="https://github.com/${{ env.GITHUB_REPO }}/releases/download/v${VERSION}"
-
-          get_sha256() {
-            local url="$1"
-            local name="$2"
-            echo "Downloading ${name}..." >&2
-            SHA=$(curl -sfL "${url}" | sha256sum | cut -d' ' -f1)
-            if [ -z "$SHA" ] || [ "$SHA" = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ]; then
-              echo "Error: Failed to download ${name} or file is empty" >&2
-              exit 1
-            fi
-            echo "${name}: ${SHA}" >&2
-            echo "$SHA"
-          }
-
-          SHA_DARWIN_ARM64=$(get_sha256 "${BASE_URL}/aion-darwin-arm64.tar.zst" "darwin-arm64")
-          SHA_DARWIN_X64=$(get_sha256 "${BASE_URL}/aion-darwin-x64.tar.zst" "darwin-x64")
-          SHA_LINUX_ARM64=$(get_sha256 "${BASE_URL}/aion-linux-arm64.tar.zst" "linux-arm64")
-          SHA_LINUX_X64=$(get_sha256 "${BASE_URL}/aion-linux-x64.tar.zst" "linux-x64")
-
-          echo "darwin_arm64=${SHA_DARWIN_ARM64}" >> $GITHUB_OUTPUT
-          echo "darwin_x64=${SHA_DARWIN_X64}" >> $GITHUB_OUTPUT
-          echo "linux_arm64=${SHA_LINUX_ARM64}" >> $GITHUB_OUTPUT
-          echo "linux_x64=${SHA_LINUX_X64}" >> $GITHUB_OUTPUT
-
-      - name: Trigger Homebrew tap update
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          repository: ${{ env.HOMEBREW_TAP }}
-          event-type: update-formula-aion
-          client-payload: >-
-            {
-              "version": "${{ steps.version.outputs.version }}",
-              "sha256_darwin_arm64": "${{ steps.sha256.outputs.darwin_arm64 }}",
-              "sha256_darwin_x64": "${{ steps.sha256.outputs.darwin_x64 }}",
-              "sha256_linux_arm64": "${{ steps.sha256.outputs.linux_arm64 }}",
-              "sha256_linux_x64": "${{ steps.sha256.outputs.linux_x64 }}"
-            }
-
-      - name: Summary
-        run: |
-          echo "## Homebrew Tap Update Triggered" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Version: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Checksums" >> $GITHUB_STEP_SUMMARY
-          echo "| Platform | SHA256 |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| darwin-arm64 | \`${{ steps.sha256.outputs.darwin_arm64 }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| darwin-x64 | \`${{ steps.sha256.outputs.darwin_x64 }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| linux-arm64 | \`${{ steps.sha256.outputs.linux_arm64 }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| linux_x64 | \`${{ steps.sha256.outputs.linux_x64 }}\` |" >> $GITHUB_STEP_SUMMARY
