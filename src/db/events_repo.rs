@@ -203,3 +203,8 @@ pub fn delete_events_for_account(conn: &Connection, account_email: &str) -> Resu
     )?;
     Ok(())
 }
+
+pub fn delete_all_events(conn: &Connection) -> Result<()> {
+    conn.execute("DELETE FROM events", [])?;
+    Ok(())
+}

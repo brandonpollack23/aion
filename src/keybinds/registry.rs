@@ -924,6 +924,9 @@ fn execute_command(app: &mut AppState, cmd: &str, tx: &UnboundedSender<AppEvent>
         "sync" => {
             tx.send(AppEvent::TriggerSync).ok();
         }
+        "resync" => {
+            cmd_resync(app, tx);
+        }
         "login" => cmd_login(app, tx),
         "logout" => cmd_logout(app, tx),
         "caldav" => cmd_caldav(app),
@@ -1007,6 +1010,26 @@ fn cmd_login(app: &mut AppState, tx: &UnboundedSender<AppEvent>) {
             }
         }
     });
+}
+
+fn cmd_resync(app: &mut AppState, tx: &UnboundedSender<AppEvent>) {
+    match crate::db::connection::open_connection() {
+        Ok(conn) => {
+            let _ = crate::db::events_repo::delete_all_events(&conn);
+        }
+        Err(e) => {
+            app.show_message(crate::state::message::Message::error(format!(
+                "Failed to clear events DB: {e}"
+            )));
+            return;
+        }
+    }
+    let _ = crate::db::sync_tokens::clear_all_sync_tokens();
+    app.events.clear();
+    app.show_message(crate::state::message::Message::info(
+        "Cleared local cache — resyncing from remote…",
+    ));
+    tx.send(AppEvent::TriggerSync).ok();
 }
 
 fn cmd_logout(app: &mut AppState, _tx: &UnboundedSender<AppEvent>) {
