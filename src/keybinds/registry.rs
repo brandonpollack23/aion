@@ -1480,6 +1480,13 @@ fn apply_rsvp_single(app: &mut AppState, id: &str, status: &str, tx: &UnboundedS
                         tx_clone.send(AppEvent::TriggerSync).ok();
                     }
                     Err(e) => {
+                        tracing::warn!(
+                            "RSVP update failed for {}/{} {}: {}",
+                            account_email,
+                            calendar_id,
+                            event_id,
+                            e
+                        );
                         tx_clone.send(AppEvent::RsvpError(e.to_string())).ok();
                     }
                 }

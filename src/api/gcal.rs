@@ -539,48 +539,12 @@ impl GcalClient {
         response_status: &str,
         current_attendees: &[crate::domain::event::Attendee],
     ) -> Result<()> {
-        use serde_json::json;
-
         let google_id = extract_google_id(composite_id);
         let cal_enc = urlencoding::encode(calendar_id);
         let ev_enc = urlencoding::encode(&google_id);
         let path = format!("/calendars/{}/events/{}", cal_enc, ev_enc);
 
-        // Build attendees array with self responseStatus updated
-        let attendees_json: Vec<serde_json::Value> = current_attendees
-            .iter()
-            .map(|a| {
-                let status = if a.is_self == Some(true) {
-                    response_status
-                } else {
-                    a.response_status
-                        .as_ref()
-                        .map(|s| match s {
-                            crate::domain::event::ResponseStatus::Accepted => "accepted",
-                            crate::domain::event::ResponseStatus::Declined => "declined",
-                            crate::domain::event::ResponseStatus::Tentative => "tentative",
-                            crate::domain::event::ResponseStatus::NeedsAction => "needsAction",
-                        })
-                        .unwrap_or("needsAction")
-                };
-                let mut v = json!({
-                    "email": a.email,
-                    "responseStatus": status,
-                });
-                if let Some(ref name) = a.display_name {
-                    v["displayName"] = json!(name);
-                }
-                if let Some(true) = a.organizer {
-                    v["organizer"] = json!(true);
-                }
-                if let Some(true) = a.is_self {
-                    v["self"] = json!(true);
-                }
-                v
-            })
-            .collect();
-
-        let body = json!({ "attendees": attendees_json });
+        let body = attendance_patch_body(response_status, current_attendees)?;
         // PATCH returns the updated event, but we ignore it here
         let _raw: serde_json::Value = self.patch_json(account_email, &path, &body).await?;
         Ok(())
@@ -614,6 +578,26 @@ impl GcalClient {
         let path = format!("/calendars/{}/events/{}", cal_enc, ev_enc);
         self.delete(account_email, &path).await
     }
+}
+
+fn attendance_patch_body(
+    response_status: &str,
+    current_attendees: &[crate::domain::event::Attendee],
+) -> Result<serde_json::Value> {
+    use serde_json::json;
+
+    let self_attendee = current_attendees
+        .iter()
+        .find(|a| a.is_self == Some(true))
+        .ok_or_else(|| anyhow::anyhow!("Cannot RSVP: current user is not an attendee"))?;
+
+    Ok(json!({
+        "attendeesOmitted": true,
+        "attendees": [{
+            "email": self_attendee.email,
+            "responseStatus": response_status,
+        }],
+    }))
 }
 
 fn event_to_json(event: &CalEvent) -> serde_json::Value {
@@ -739,5 +723,60 @@ impl GcalClient {
 mod urlencoding {
     pub fn encode(s: &str) -> String {
         url::form_urlencoded::byte_serialize(s.as_bytes()).collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::attendance_patch_body;
+    use crate::domain::event::{Attendee, ResponseStatus};
+    use serde_json::json;
+
+    #[test]
+    fn attendance_patch_body_updates_only_self_attendee() {
+        let attendees = vec![
+            Attendee {
+                email: "organizer@example.com".to_string(),
+                display_name: Some("Organizer".to_string()),
+                response_status: Some(ResponseStatus::Accepted),
+                organizer: Some(true),
+                is_self: None,
+            },
+            Attendee {
+                email: "me@example.com".to_string(),
+                display_name: Some("Me".to_string()),
+                response_status: Some(ResponseStatus::NeedsAction),
+                organizer: None,
+                is_self: Some(true),
+            },
+        ];
+
+        let body = attendance_patch_body("accepted", &attendees).unwrap();
+
+        assert_eq!(
+            body,
+            json!({
+                "attendeesOmitted": true,
+                "attendees": [{
+                    "email": "me@example.com",
+                    "responseStatus": "accepted",
+                }],
+            })
+        );
+    }
+
+    #[test]
+    fn attendance_patch_body_requires_self_attendee() {
+        let attendees = vec![Attendee {
+            email: "someone@example.com".to_string(),
+            display_name: None,
+            response_status: Some(ResponseStatus::NeedsAction),
+            organizer: None,
+            is_self: None,
+        }];
+
+        let err = attendance_patch_body("declined", &attendees).unwrap_err();
+
+        assert!(err.to_string().contains("current user is not an attendee"));
     }
 }
