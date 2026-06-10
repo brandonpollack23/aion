@@ -1,16 +1,12 @@
-use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, NaiveDateTime, TimeZone, Timelike, Weekday};
+use chrono::{
+    DateTime, Datelike, Duration, Local, NaiveDate, NaiveDateTime, TimeZone, Timelike, Weekday,
+};
 use chrono_tz::Tz;
 
 use crate::domain::event::{CalEvent, TimeObject};
 
 pub fn get_local_timezone() -> String {
-    // Try to get timezone from /etc/timezone, fall back to Local's offset
-    std::fs::read_to_string("/etc/timezone")
-        .map(|s| s.trim().to_string())
-        .unwrap_or_else(|_| {
-            let offset = Local::now().offset().local_minus_utc();
-            format!("UTC{:+}", offset / 3600)
-        })
+    iana_time_zone::get_timezone().unwrap_or_else(|_| "UTC".to_string())
 }
 
 pub fn parse_tz(tz_str: &str) -> Option<Tz> {
@@ -102,9 +98,18 @@ pub fn format_day_header(date: NaiveDate) -> String {
         Weekday::Sun => "Sunday",
     };
     let month = match date.month() {
-        1 => "January", 2 => "February", 3 => "March", 4 => "April",
-        5 => "May", 6 => "June", 7 => "July", 8 => "August",
-        9 => "September", 10 => "October", 11 => "November", 12 => "December",
+        1 => "January",
+        2 => "February",
+        3 => "March",
+        4 => "April",
+        5 => "May",
+        6 => "June",
+        7 => "July",
+        8 => "August",
+        9 => "September",
+        10 => "October",
+        11 => "November",
+        12 => "December",
         _ => "Unknown",
     };
     format!("{}, {} {}", weekday, month, date.day())
@@ -141,20 +146,139 @@ pub fn event_falls_on_day(event: &CalEvent, day: NaiveDate, tz: &str) -> bool {
         }
     }
 
-    // Timed events: check for overlap
+    // Timed events: check for overlap using full datetimes. Comparing only
+    // date parts drops ordinary same-day events because their end date equals
+    // the day being rendered.
     let event_start = match get_event_start(event, tz) {
-        Some(dt) => dt.date_naive(),
+        Some(dt) => dt,
         None => return false,
     };
     let event_end = match get_event_end(event, tz) {
         Some(dt) => dt,
         None => return false,
     };
+    let tz_parsed: Tz = parse_tz(tz).unwrap_or(chrono_tz::UTC);
+    let day_start = tz_parsed
+        .from_local_datetime(&day.and_hms_opt(0, 0, 0).unwrap())
+        .single()
+        .unwrap_or_else(|| tz_parsed.from_utc_datetime(&day.and_hms_opt(0, 0, 0).unwrap()));
+    let day_end = day_start + Duration::days(1);
 
-    let day_start = day;
-    let day_end = day + Duration::days(1);
-    let event_end_date = event_end.date_naive();
+    event_start < day_end && event_end > day_start
+}
 
-    // Overlaps if event starts before day_end and ends after day_start
-    event_start < day_end && event_end_date > day_start
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::event::EventStatus;
+
+    fn timed_event(start: &str, end: &str) -> CalEvent {
+        CalEvent {
+            id: "event".to_string(),
+            summary: "event".to_string(),
+            description: None,
+            location: None,
+            html_link: None,
+            status: EventStatus::Confirmed,
+            event_type: None,
+            start: TimeObject {
+                date: None,
+                date_time: Some(start.to_string()),
+                time_zone: None,
+            },
+            end: TimeObject {
+                date: None,
+                date_time: Some(end.to_string()),
+                time_zone: None,
+            },
+            attendees: None,
+            organizer: None,
+            recurrence: None,
+            recurring_event_id: None,
+            original_start_time: None,
+            hangout_link: None,
+            reminders: None,
+            account_email: None,
+            calendar_id: None,
+        }
+    }
+
+    fn all_day_event(start: &str, end: &str) -> CalEvent {
+        let mut event = timed_event("", "");
+        event.start = TimeObject {
+            date: Some(start.to_string()),
+            date_time: None,
+            time_zone: None,
+        };
+        event.end = TimeObject {
+            date: Some(end.to_string()),
+            date_time: None,
+            time_zone: None,
+        };
+        event
+    }
+
+    #[test]
+    fn same_day_timed_event_falls_on_its_day() {
+        let event = timed_event("2026-06-10T08:30:00+09:00", "2026-06-10T09:00:00+09:00");
+
+        assert!(event_falls_on_day(
+            &event,
+            NaiveDate::from_ymd_opt(2026, 6, 10).unwrap(),
+            "Asia/Tokyo"
+        ));
+    }
+
+    #[test]
+    fn cross_midnight_timed_event_falls_on_both_days() {
+        let event = timed_event("2026-06-10T23:30:00+09:00", "2026-06-11T00:30:00+09:00");
+
+        assert!(event_falls_on_day(
+            &event,
+            NaiveDate::from_ymd_opt(2026, 6, 10).unwrap(),
+            "Asia/Tokyo"
+        ));
+        assert!(event_falls_on_day(
+            &event,
+            NaiveDate::from_ymd_opt(2026, 6, 11).unwrap(),
+            "Asia/Tokyo"
+        ));
+    }
+
+    #[test]
+    fn timed_event_ending_at_midnight_is_only_on_previous_day() {
+        let event = timed_event("2026-06-10T23:30:00+09:00", "2026-06-11T00:00:00+09:00");
+
+        assert!(event_falls_on_day(
+            &event,
+            NaiveDate::from_ymd_opt(2026, 6, 10).unwrap(),
+            "Asia/Tokyo"
+        ));
+        assert!(!event_falls_on_day(
+            &event,
+            NaiveDate::from_ymd_opt(2026, 6, 11).unwrap(),
+            "Asia/Tokyo"
+        ));
+    }
+
+    #[test]
+    fn all_day_event_uses_exclusive_end_date() {
+        let event = all_day_event("2026-06-10", "2026-06-12");
+
+        assert!(event_falls_on_day(
+            &event,
+            NaiveDate::from_ymd_opt(2026, 6, 10).unwrap(),
+            "Asia/Tokyo"
+        ));
+        assert!(event_falls_on_day(
+            &event,
+            NaiveDate::from_ymd_opt(2026, 6, 11).unwrap(),
+            "Asia/Tokyo"
+        ));
+        assert!(!event_falls_on_day(
+            &event,
+            NaiveDate::from_ymd_opt(2026, 6, 12).unwrap(),
+            "Asia/Tokyo"
+        ));
+    }
 }

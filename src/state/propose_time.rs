@@ -68,12 +68,7 @@ impl ProposeTimeState {
         let organizer = event
             .organizer
             .as_ref()
-            .map(|o| {
-                o.display_name
-                    .as_deref()
-                    .unwrap_or(&o.email)
-                    .to_string()
-            })
+            .map(|o| o.display_name.as_deref().unwrap_or(&o.email).to_string())
             .unwrap_or_else(|| "Unknown".to_string());
 
         Self {
@@ -138,8 +133,8 @@ impl ProposeTimeState {
         if self.when_input.is_empty() {
             self.when_preview = None;
         } else {
-            self.when_preview = parse_natural_date(&self.when_input.clone())
-                .map(|p| format_parsed_preview(&p));
+            self.when_preview =
+                parse_natural_date(&self.when_input.clone()).map(|p| format_parsed_preview(&p));
         }
     }
 

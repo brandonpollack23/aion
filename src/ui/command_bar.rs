@@ -14,15 +14,27 @@ const MAX_COMPLETIONS: usize = 8;
 pub fn render_command_input(app: &AppState, frame: &mut Frame, area: Rect) {
     let cursor = app.command_cursor.min(app.command_input.chars().count());
     let before: String = app.command_input.chars().take(cursor).collect();
-    let at: String = app.command_input.chars().nth(cursor).map(|c| c.to_string()).unwrap_or_default();
-    let after: String = app.command_input.chars().skip(cursor + if at.is_empty() { 0 } else { 1 }).collect();
+    let at: String = app
+        .command_input
+        .chars()
+        .nth(cursor)
+        .map(|c| c.to_string())
+        .unwrap_or_default();
+    let after: String = app
+        .command_input
+        .chars()
+        .skip(cursor + if at.is_empty() { 0 } else { 1 })
+        .collect();
 
     let mut spans = vec![
         Span::styled(":", Style::default().fg(app.theme.accent_primary)),
         Span::styled(before, Style::default().fg(app.theme.text_primary)),
     ];
     if at.is_empty() {
-        spans.push(Span::styled("█", Style::default().fg(app.theme.accent_primary)));
+        spans.push(Span::styled(
+            "█",
+            Style::default().fg(app.theme.accent_primary),
+        ));
     } else {
         spans.push(Span::styled(
             at,
@@ -30,14 +42,20 @@ pub fn render_command_input(app: &AppState, frame: &mut Frame, area: Rect) {
                 .fg(app.theme.statusbar_bg)
                 .bg(app.theme.accent_primary),
         ));
-        spans.push(Span::styled(after, Style::default().fg(app.theme.text_primary)));
+        spans.push(Span::styled(
+            after,
+            Style::default().fg(app.theme.text_primary),
+        ));
     }
 
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
 pub fn render_command_completions(app: &AppState, frame: &mut Frame, area: Rect) {
-    let query = app.command_completion_query.as_deref().unwrap_or(&app.command_input);
+    let query = app
+        .command_completion_query
+        .as_deref()
+        .unwrap_or(&app.command_input);
     let completions = filter_commands(query);
     if completions.is_empty() {
         return;

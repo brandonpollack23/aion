@@ -35,17 +35,20 @@ pub fn render_accounts_dialog(app: &AppState, frame: &mut Frame, area: Rect) {
     if app.accounts.is_empty() {
         let msg = Paragraph::new("No accounts connected. Run ':login' to add one.")
             .style(Style::default().fg(app.theme.text_dim));
-        frame.render_widget(msg, inner.inner(Margin { horizontal: 1, vertical: 1 }));
+        frame.render_widget(
+            msg,
+            inner.inner(Margin {
+                horizontal: 1,
+                vertical: 1,
+            }),
+        );
         render_footer(app, frame, inner, "Esc:close");
         return;
     }
 
     let layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Fill(1),
-            Constraint::Length(1),
-        ])
+        .constraints([Constraint::Fill(1), Constraint::Length(1)])
         .split(inner);
 
     let body = layout[0];
@@ -54,10 +57,7 @@ pub fn render_accounts_dialog(app: &AppState, frame: &mut Frame, area: Rect) {
     // Split body into sidebar + detail
     let body_layout = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Length(SIDEBAR_WIDTH),
-            Constraint::Fill(1),
-        ])
+        .constraints([Constraint::Length(SIDEBAR_WIDTH), Constraint::Fill(1)])
         .split(body);
 
     render_sidebar(app, frame, body_layout[0]);
@@ -103,7 +103,10 @@ fn render_sidebar(app: &AppState, frame: &mut Frame, area: Rect) {
 }
 
 fn render_detail(app: &AppState, frame: &mut Frame, area: Rect) {
-    let inner = area.inner(Margin { horizontal: 1, vertical: 0 });
+    let inner = area.inner(Margin {
+        horizontal: 1,
+        vertical: 0,
+    });
     let Some(account) = app.accounts.get(app.accounts_selected_index) else {
         return;
     };

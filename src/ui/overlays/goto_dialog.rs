@@ -63,7 +63,10 @@ pub fn render_goto_dialog(app: &AppState, frame: &mut Frame, area: Rect) {
         Some(preview) => {
             lines.push(Line::from(vec![
                 Span::styled("→ ", Style::default().fg(app.theme.accent_success)),
-                Span::styled(preview.clone(), Style::default().fg(app.theme.accent_success)),
+                Span::styled(
+                    preview.clone(),
+                    Style::default().fg(app.theme.accent_success),
+                ),
             ]));
         }
         None if !app.goto_input.is_empty() => {

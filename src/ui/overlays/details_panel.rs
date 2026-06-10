@@ -6,9 +6,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::domain::event::{
-    CalEvent, EventType, ReminderMethod, ResponseStatus,
-};
+use crate::domain::event::{CalEvent, EventType, ReminderMethod, ResponseStatus};
 use crate::domain::time::{format_day_header, format_time, get_event_end, get_event_start};
 use crate::state::app_state::AppState;
 use crate::ui::layout_helpers::right_panel;
@@ -104,14 +102,20 @@ fn build_detail_lines<'a>(app: &'a AppState, event: &'a CalEvent) -> Vec<Line<'a
     // Organizer
     if let Some(ref org) = event.organizer {
         let label = if org.is_self == Some(true) {
-            format!("{} (you)", format_email(org.email.clone(), org.display_name.clone()))
+            format!(
+                "{} (you)",
+                format_email(org.email.clone(), org.display_name.clone())
+            )
         } else {
             format_email(org.email.clone(), org.display_name.clone())
         };
         lines.push(row_line(
             app,
             "organizer",
-            vec![Span::styled(label, Style::default().fg(app.theme.text_secondary))],
+            vec![Span::styled(
+                label,
+                Style::default().fg(app.theme.text_secondary),
+            )],
         ));
     }
 
@@ -245,18 +249,22 @@ fn build_detail_lines<'a>(app: &'a AppState, event: &'a CalEvent) -> Vec<Line<'a
     }
 
     // Meeting link — prefer hangout_link, then scan location/description
-    let extra_link = event.hangout_link.as_deref().map(|s| s.to_string()).or_else(|| {
-        let candidates = [
-            event.location.as_deref().unwrap_or(""),
-            event.description.as_deref().unwrap_or(""),
-        ];
-        for text in &candidates {
-            if let Some(link) = extract_meeting_link(text) {
-                return Some(link);
+    let extra_link = event
+        .hangout_link
+        .as_deref()
+        .map(|s| s.to_string())
+        .or_else(|| {
+            let candidates = [
+                event.location.as_deref().unwrap_or(""),
+                event.description.as_deref().unwrap_or(""),
+            ];
+            for text in &candidates {
+                if let Some(link) = extract_meeting_link(text) {
+                    return Some(link);
+                }
             }
-        }
-        None
-    });
+            None
+        });
     if let Some(ref link) = extra_link {
         let label = meeting_link_label(link);
         lines.push(row_line(
@@ -291,18 +299,12 @@ fn build_detail_lines<'a>(app: &'a AppState, event: &'a CalEvent) -> Vec<Line<'a
                     Some(ResponseStatus::Tentative) => ("?", app.theme.status_tentative),
                     _ => ("○", app.theme.status_needs_action),
                 };
-                let name = format_email(
-                    attendee.email.clone(),
-                    attendee.display_name.clone(),
-                );
+                let name = format_email(attendee.email.clone(), attendee.display_name.clone());
                 lines.push(row_line(
                     app,
                     "",
                     vec![
-                        Span::styled(
-                            format!("{} ", icon),
-                            Style::default().fg(color),
-                        ),
+                        Span::styled(format!("{} ", icon), Style::default().fg(color)),
                         Span::styled(name, Style::default().fg(app.theme.text_secondary)),
                     ],
                 ));
@@ -380,12 +382,24 @@ fn format_email(email: String, display_name: Option<String>) -> String {
 }
 
 fn meeting_link_label(url: &str) -> &'static str {
-    if url.contains("meet.google.com") { return "meet"; }
-    if url.contains("zoom.us") { return "zoom"; }
-    if url.contains("teams.microsoft.com") { return "teams"; }
-    if url.contains("webex.com") { return "webex"; }
-    if url.contains("whereby.com") { return "whereby"; }
-    if url.contains("jit.si") { return "jitsi"; }
+    if url.contains("meet.google.com") {
+        return "meet";
+    }
+    if url.contains("zoom.us") {
+        return "zoom";
+    }
+    if url.contains("teams.microsoft.com") {
+        return "teams";
+    }
+    if url.contains("webex.com") {
+        return "webex";
+    }
+    if url.contains("whereby.com") {
+        return "whereby";
+    }
+    if url.contains("jit.si") {
+        return "jitsi";
+    }
     "link"
 }
 

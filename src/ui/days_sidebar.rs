@@ -30,7 +30,9 @@ pub fn render_days_sidebar(app: &AppState, frame: &mut Frame, area: Rect) {
                     .fg(app.theme.selection_text)
                     .add_modifier(Modifier::BOLD)
             } else if is_selected {
-                Style::default().fg(app.theme.accent_primary).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(app.theme.accent_primary)
+                    .add_modifier(Modifier::BOLD)
             } else if is_today(day) {
                 Style::default().fg(app.theme.accent_success)
             } else if is_weekend(day) {
@@ -39,7 +41,13 @@ pub fn render_days_sidebar(app: &AppState, frame: &mut Frame, area: Rect) {
                 Style::default().fg(app.theme.text_secondary)
             };
 
-            let prefix = if is_selected && is_focused { "▶" } else if is_selected { "▸" } else { " " };
+            let prefix = if is_selected && is_focused {
+                "▶"
+            } else if is_selected {
+                "▸"
+            } else {
+                " "
+            };
             Line::from(vec![
                 Span::styled(prefix, style),
                 Span::styled(padded, style),

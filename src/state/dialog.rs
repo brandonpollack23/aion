@@ -87,7 +87,11 @@ impl DialogState {
         let (end_date, end_time) = if let Some(ref d) = event.end.date {
             // GCal all-day end is exclusive; show inclusive (subtract 1 day)
             let adjusted = chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d")
-                .map(|d| (d - chrono::Duration::days(1)).format("%Y-%m-%d").to_string())
+                .map(|d| {
+                    (d - chrono::Duration::days(1))
+                        .format("%Y-%m-%d")
+                        .to_string()
+                })
                 .unwrap_or_else(|_| d.clone());
             (adjusted, String::new())
         } else if let Some(ref dt) = event.end.date_time {
@@ -95,7 +99,10 @@ impl DialogState {
                 .map(|d| d.with_timezone(&Local))
                 .ok();
             if let Some(p) = parsed {
-                (p.format("%Y-%m-%d").to_string(), p.format("%H:%M").to_string())
+                (
+                    p.format("%Y-%m-%d").to_string(),
+                    p.format("%H:%M").to_string(),
+                )
             } else {
                 (String::new(), String::new())
             }
@@ -242,13 +249,11 @@ impl DialogState {
             self.when_preview = None;
             return;
         }
-        self.when_preview = parse_natural_date(&self.when_input)
-            .map(|p| format_parsed_preview(&p));
+        self.when_preview = parse_natural_date(&self.when_input).map(|p| format_parsed_preview(&p));
     }
 
     /// Build a CalEvent from the current dialog state.
     pub fn build_event(&self) -> CalEvent {
-
         let id = self.event_id.clone().unwrap_or_else(|| {
             use std::time::{SystemTime, UNIX_EPOCH};
             let nanos = SystemTime::now()
@@ -268,11 +273,23 @@ impl DialogState {
             let start_date = self.start_date.clone();
             // End date is exclusive in GCal
             let end_date = chrono::NaiveDate::parse_from_str(&self.end_date, "%Y-%m-%d")
-                .map(|d| (d + chrono::Duration::days(1)).format("%Y-%m-%d").to_string())
+                .map(|d| {
+                    (d + chrono::Duration::days(1))
+                        .format("%Y-%m-%d")
+                        .to_string()
+                })
                 .unwrap_or_else(|_| self.end_date.clone());
             (
-                TimeObject { date: Some(start_date), date_time: None, time_zone: None },
-                TimeObject { date: Some(end_date), date_time: None, time_zone: None },
+                TimeObject {
+                    date: Some(start_date),
+                    date_time: None,
+                    time_zone: None,
+                },
+                TimeObject {
+                    date: Some(end_date),
+                    date_time: None,
+                    time_zone: None,
+                },
             )
         } else {
             let tz_str = crate::domain::time::get_local_timezone();
@@ -292,8 +309,16 @@ impl DialogState {
                 .map(|dt| dt.to_rfc3339())
                 .unwrap_or_else(|| format!("{}:00+00:00", end_dt_str));
             (
-                TimeObject { date: None, date_time: Some(start_iso), time_zone: Some(tz_str.clone()) },
-                TimeObject { date: None, date_time: Some(end_iso), time_zone: Some(tz_str) },
+                TimeObject {
+                    date: None,
+                    date_time: Some(start_iso),
+                    time_zone: Some(tz_str.clone()),
+                },
+                TimeObject {
+                    date: None,
+                    date_time: Some(end_iso),
+                    time_zone: Some(tz_str),
+                },
             )
         };
 
@@ -310,8 +335,16 @@ impl DialogState {
         CalEvent {
             id,
             summary: self.title.clone(),
-            description: if self.notes.is_empty() { None } else { Some(self.notes.clone()) },
-            location: if self.location.is_empty() { None } else { Some(self.location.clone()) },
+            description: if self.notes.is_empty() {
+                None
+            } else {
+                Some(self.notes.clone())
+            },
+            location: if self.location.is_empty() {
+                None
+            } else {
+                Some(self.location.clone())
+            },
             html_link: None,
             status: EventStatus::Confirmed,
             event_type,

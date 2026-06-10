@@ -1,11 +1,11 @@
 pub mod accounts_dialog;
-pub mod login_prompt;
 pub mod caldav_login_dialog;
 pub mod confirm_modal;
 pub mod details_panel;
 pub mod event_dialog;
 pub mod goto_dialog;
 pub mod help_dialog;
+pub mod login_prompt;
 pub mod meet_with_dialog;
 pub mod messages_dialog;
 pub mod notifications_panel;

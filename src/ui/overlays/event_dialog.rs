@@ -8,8 +8,7 @@ use ratatui::{
 
 use crate::state::app_state::AppState;
 use crate::state::dialog::{
-    DialogState, EVENT_TYPE_LABELS,
-    F_ALL_DAY, F_END_DATE, F_END_TIME, F_EVENT_TYPE, F_LOCATION,
+    DialogState, EVENT_TYPE_LABELS, F_ALL_DAY, F_END_DATE, F_END_TIME, F_EVENT_TYPE, F_LOCATION,
     F_NOTES, F_START_DATE, F_START_TIME, F_TITLE, F_WHEN,
 };
 use crate::ui::layout_helpers::centered_fixed;
@@ -28,7 +27,11 @@ pub fn render_event_dialog(app: &AppState, frame: &mut Frame, area: Rect) {
 
     frame.render_widget(Clear, rect);
 
-    let title = if ds.is_edit { " Edit Event " } else { " New Event " };
+    let title = if ds.is_edit {
+        " Edit Event "
+    } else {
+        " New Event "
+    };
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(app.theme.accent_primary))
@@ -105,7 +108,10 @@ fn text_field_spans<'a>(
     } else {
         let mut spans = vec![Span::styled(text, field_style(app, active))];
         if active {
-            spans.push(Span::styled("█", Style::default().fg(app.theme.accent_primary)));
+            spans.push(Span::styled(
+                "█",
+                Style::default().fg(app.theme.accent_primary),
+            ));
         }
         spans
     }
@@ -186,7 +192,12 @@ fn build_form_lines<'a>(app: &'a AppState, ds: &'a DialogState, width: u16) -> V
         let time_active = ds.active_field == F_START_TIME;
 
         let mut spans = vec![label_span("start", app)];
-        spans.extend(text_field_spans(app, &ds.start_date, date_active, "YYYY-MM-DD"));
+        spans.extend(text_field_spans(
+            app,
+            &ds.start_date,
+            date_active,
+            "YYYY-MM-DD",
+        ));
 
         if !ds.is_all_day {
             spans.push(Span::styled("  ", Style::default()));
@@ -201,7 +212,12 @@ fn build_form_lines<'a>(app: &'a AppState, ds: &'a DialogState, width: u16) -> V
         let time_active = ds.active_field == F_END_TIME;
 
         let mut spans = vec![label_span("end", app)];
-        spans.extend(text_field_spans(app, &ds.end_date, date_active, "YYYY-MM-DD"));
+        spans.extend(text_field_spans(
+            app,
+            &ds.end_date,
+            date_active,
+            "YYYY-MM-DD",
+        ));
 
         if !ds.is_all_day {
             spans.push(Span::styled("  ", Style::default()));

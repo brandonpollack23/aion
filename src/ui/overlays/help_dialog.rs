@@ -8,10 +8,9 @@ use ratatui::{
 
 use crate::keybinds::help::{
     CALENDARS_BINDS, COMMAND_BINDS, DAYS_BINDS, DETAILS_BINDS, DIALOG_BINDS, GLOBAL_BINDS,
-    GOTO_BINDS, MESSAGES_BINDS, MONTH_BINDS, SEARCH_BINDS, TIMELINE_BINDS,
+    MONTH_BINDS, SEARCH_BINDS, TIMELINE_BINDS,
 };
 use crate::state::app_state::AppState;
-use crate::state::focus::FocusContext;
 use crate::ui::layout_helpers::centered_fixed;
 
 pub fn render_help_dialog(app: &AppState, frame: &mut Frame, area: Rect) {
@@ -42,50 +41,26 @@ pub fn render_help_dialog(app: &AppState, frame: &mut Frame, area: Rect) {
         return;
     }
 
-    // Build lines based on previous focus context
     let mut lines: Vec<Line> = Vec::new();
 
-    // Always show global
     add_section(&mut lines, app, &GLOBAL_BINDS);
-
-    // Context-specific sections
-    match app
-        .overlay_stack
-        .iter()
-        .rfind(|o| o.kind == crate::state::overlay::OverlayKind::Help)
-        .and_then(|o| o.prev_focus.as_ref())
-        .unwrap_or(&FocusContext::Timeline)
-    {
-        FocusContext::Timeline => add_section(&mut lines, app, &TIMELINE_BINDS),
-        FocusContext::Days => add_section(&mut lines, app, &DAYS_BINDS),
-        FocusContext::Calendars => add_section(&mut lines, app, &CALENDARS_BINDS),
-        FocusContext::Details => add_section(&mut lines, app, &DETAILS_BINDS),
-        FocusContext::Search => add_section(&mut lines, app, &SEARCH_BINDS),
-        FocusContext::Command => add_section(&mut lines, app, &COMMAND_BINDS),
-        FocusContext::Dialog => add_section(&mut lines, app, &DIALOG_BINDS),
-        FocusContext::Goto => add_section(&mut lines, app, &GOTO_BINDS),
-        FocusContext::Messages => add_section(&mut lines, app, &MESSAGES_BINDS),
-        _ => {
-            add_section(&mut lines, app, &TIMELINE_BINDS);
-        }
-    }
-
-    // Always add remaining sections
     add_section(&mut lines, app, &TIMELINE_BINDS);
     add_section(&mut lines, app, &MONTH_BINDS);
     add_section(&mut lines, app, &DAYS_BINDS);
+    add_section(&mut lines, app, &CALENDARS_BINDS);
     add_section(&mut lines, app, &DETAILS_BINDS);
     add_section(&mut lines, app, &DIALOG_BINDS);
     add_section(&mut lines, app, &SEARCH_BINDS);
     add_section(&mut lines, app, &COMMAND_BINDS);
 
-    frame.render_widget(
-        Paragraph::new(lines).wrap(Wrap { trim: false }),
-        inner,
-    );
+    frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), inner);
 }
 
-fn add_section(lines: &mut Vec<Line<'static>>, app: &AppState, section: &crate::keybinds::help::Section) {
+fn add_section(
+    lines: &mut Vec<Line<'static>>,
+    app: &AppState,
+    section: &crate::keybinds::help::Section,
+) {
     lines.push(Line::from(Span::styled(
         section.title,
         Style::default()
@@ -98,7 +73,10 @@ fn add_section(lines: &mut Vec<Line<'static>>, app: &AppState, section: &crate::
                 format!("  {:<14}", bind.display),
                 Style::default().fg(app.theme.accent_primary),
             ),
-            Span::styled(bind.description, Style::default().fg(app.theme.text_secondary)),
+            Span::styled(
+                bind.description,
+                Style::default().fg(app.theme.text_secondary),
+            ),
         ]));
     }
     lines.push(Line::raw(""));

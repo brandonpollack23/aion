@@ -212,9 +212,12 @@ impl AppState {
             if !seen.contains_key(&key) {
                 // Preserve display name and color if this calendar was already known.
                 let existing = self.calendars.iter().find(|c| c.key == key);
-                let display_name = existing
-                    .map(|c| c.display_name.clone())
-                    .unwrap_or_else(|| event.calendar_id.clone().unwrap_or_else(|| "Calendar".into()));
+                let display_name = existing.map(|c| c.display_name.clone()).unwrap_or_else(|| {
+                    event
+                        .calendar_id
+                        .clone()
+                        .unwrap_or_else(|| "Calendar".into())
+                });
                 let color = existing.and_then(|c| c.color);
                 seen.insert(
                     key.clone(),
@@ -231,7 +234,11 @@ impl AppState {
         }
         // Sort by account then calendar
         let mut cals: Vec<CalendarInfo> = seen.into_values().collect();
-        cals.sort_by(|a, b| a.account_email.cmp(&b.account_email).then(a.calendar_id.cmp(&b.calendar_id)));
+        cals.sort_by(|a, b| {
+            a.account_email
+                .cmp(&b.account_email)
+                .then(a.calendar_id.cmp(&b.calendar_id))
+        });
         self.calendars = cals;
     }
 
@@ -319,9 +326,7 @@ impl AppState {
 
     pub fn pop_overlay(&mut self) {
         if let Some(top) = self.overlay_stack.pop() {
-            self.focus = top
-                .prev_focus
-                .unwrap_or(FocusContext::Timeline);
+            self.focus = top.prev_focus.unwrap_or(FocusContext::Timeline);
         }
     }
 
@@ -489,8 +494,18 @@ impl AppState {
             .collect();
 
         results.sort_by(|a, b| {
-            let a_dt = a.start.date_time.as_deref().or(a.start.date.as_deref()).unwrap_or("");
-            let b_dt = b.start.date_time.as_deref().or(b.start.date.as_deref()).unwrap_or("");
+            let a_dt = a
+                .start
+                .date_time
+                .as_deref()
+                .or(a.start.date.as_deref())
+                .unwrap_or("");
+            let b_dt = b
+                .start
+                .date_time
+                .as_deref()
+                .or(b.start.date.as_deref())
+                .unwrap_or("");
             a_dt.cmp(b_dt)
         });
         self.search_results = results;
@@ -524,13 +539,22 @@ impl AppState {
                     || !self.disabled_calendars.contains(&e.calendar_key())
             })
             .filter(|e| {
-                get_event_end(e, &self.timezone)
-                    .map_or(true, |end| end.naive_utc() >= now_utc)
+                get_event_end(e, &self.timezone).map_or(true, |end| end.naive_utc() >= now_utc)
             })
             .collect();
         invites.sort_by(|a, b| {
-            let a_start = a.start.date_time.as_deref().or(a.start.date.as_deref()).unwrap_or("");
-            let b_start = b.start.date_time.as_deref().or(b.start.date.as_deref()).unwrap_or("");
+            let a_start = a
+                .start
+                .date_time
+                .as_deref()
+                .or(a.start.date.as_deref())
+                .unwrap_or("");
+            let b_start = b
+                .start
+                .date_time
+                .as_deref()
+                .or(b.start.date.as_deref())
+                .unwrap_or("");
             a_start.cmp(b_start)
         });
         invites
@@ -551,13 +575,18 @@ impl AppState {
                     account_email: api_cal.account_email.clone(),
                     calendar_id: api_cal.id.clone(),
                     display_name: api_cal.summary.clone(),
-                    color: api_cal.background_color.as_deref().and_then(parse_hex_color),
+                    color: api_cal
+                        .background_color
+                        .as_deref()
+                        .and_then(parse_hex_color),
                     enabled: true,
                 });
             }
         }
         self.calendars.sort_by(|a, b| {
-            a.account_email.cmp(&b.account_email).then(a.calendar_id.cmp(&b.calendar_id))
+            a.account_email
+                .cmp(&b.account_email)
+                .then(a.calendar_id.cmp(&b.calendar_id))
         });
     }
 }
@@ -573,7 +602,11 @@ pub fn parse_hex_color(s: &str) -> Option<ratatui::style::Color> {
 }
 
 fn days_in_month(year: i32, month: u32) -> u32 {
-    let (next_year, next_month) = if month == 12 { (year + 1, 1) } else { (year, month + 1) };
+    let (next_year, next_month) = if month == 12 {
+        (year + 1, 1)
+    } else {
+        (year, month + 1)
+    };
     NaiveDate::from_ymd_opt(next_year, next_month, 1)
         .and_then(|d| d.pred_opt())
         .map(|d| d.day())

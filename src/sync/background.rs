@@ -45,11 +45,7 @@ pub fn start_background_sync(
 }
 
 /// Trigger an immediate one-shot sync (e.g. after login).
-pub fn trigger_sync_once(
-    tx: UnboundedSender<AppEvent>,
-    client_id: String,
-    client_secret: String,
-) {
+pub fn trigger_sync_once(tx: UnboundedSender<AppEvent>, client_id: String, client_secret: String) {
     tokio::spawn(async move {
         let gcal = GcalClient::new(client_id, client_secret);
         match perform_sync(&gcal).await {
@@ -116,18 +112,39 @@ async fn perform_sync(gcal: &GcalClient) -> Result<SyncResult> {
                         Ok(result) => {
                             if result.full_sync_required {
                                 // Fallback to full sync
-                                match gcal.fetch_events(email, &cal.id, &time_min, &time_max).await {
+                                match gcal
+                                    .fetch_events(email, &cal.id, &time_min, &time_max)
+                                    .await
+                                {
                                     Ok((events, new_token)) => {
+                                        tracing::info!(
+                                            "Full sync (fallback) {}/{}: {} events",
+                                            email,
+                                            cal.id,
+                                            events.len()
+                                        );
                                         all_changed.extend(events);
                                         if let Some(t) = new_token {
                                             new_sync_tokens.insert(key, t);
                                         }
                                     }
                                     Err(e) => {
-                                        tracing::warn!("Full sync fallback failed for {}/{}: {}", email, cal.id, e);
+                                        tracing::warn!(
+                                            "Full sync fallback failed for {}/{}: {}",
+                                            email,
+                                            cal.id,
+                                            e
+                                        );
                                     }
                                 }
                             } else {
+                                tracing::info!(
+                                    "Incremental sync {}/{}: +{} changed, -{} deleted",
+                                    email,
+                                    cal.id,
+                                    result.changed.len(),
+                                    result.deleted.len()
+                                );
                                 all_changed.extend(result.changed);
                                 all_deleted.extend(result.deleted);
                                 if let Some(t) = result.next_sync_token {
@@ -136,14 +153,28 @@ async fn perform_sync(gcal: &GcalClient) -> Result<SyncResult> {
                             }
                         }
                         Err(e) => {
-                            tracing::warn!("Incremental sync failed for {}/{}: {}", email, cal.id, e);
+                            tracing::warn!(
+                                "Incremental sync failed for {}/{}: {}",
+                                email,
+                                cal.id,
+                                e
+                            );
                         }
                     }
                 }
                 None => {
                     // First sync for this calendar
-                    match gcal.fetch_events(email, &cal.id, &time_min, &time_max).await {
+                    match gcal
+                        .fetch_events(email, &cal.id, &time_min, &time_max)
+                        .await
+                    {
                         Ok((events, new_token)) => {
+                            tracing::info!(
+                                "Full sync {}/{}: {} events",
+                                email,
+                                cal.id,
+                                events.len()
+                            );
                             all_changed.extend(events);
                             if let Some(t) = new_token {
                                 new_sync_tokens.insert(key, t);

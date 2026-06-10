@@ -53,6 +53,7 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_writer(non_blocking)
         .with_ansi(false)
+        .with_max_level(tracing::Level::INFO)
         .init();
 
     app::run().await

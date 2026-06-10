@@ -3,8 +3,8 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::app::AppEvent;
-use crate::domain::natural_date::parse_natural_date;
 use crate::config::schema::ViewMode;
+use crate::domain::natural_date::parse_natural_date;
 use crate::state::app_state::{AppState, SelectionDirection};
 use crate::state::dialog::DialogState;
 use crate::state::focus::FocusContext;
@@ -13,11 +13,7 @@ use crate::state::overlay::{Overlay, OverlayKind, RecurrenceScope};
 const DOUBLE_KEY_TIMEOUT: Duration = Duration::from_millis(500);
 
 /// Returns true if the app should quit.
-pub async fn handle_key(
-    app: &mut AppState,
-    key: KeyEvent,
-    tx: &UnboundedSender<AppEvent>,
-) -> bool {
+pub async fn handle_key(app: &mut AppState, key: KeyEvent, tx: &UnboundedSender<AppEvent>) -> bool {
     // Ctrl+C always quits
     if key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Char('c') {
         return true;
@@ -359,10 +355,7 @@ fn initiate_delete(app: &mut AppState) {
         Some(id) => id,
         None => return,
     };
-    let is_recurring = app
-        .events
-        .get(&id)
-        .map_or(false, |e| e.is_recurring());
+    let is_recurring = app.events.get(&id).map_or(false, |e| e.is_recurring());
 
     if is_recurring {
         app.pending_confirm_is_delete = true;
@@ -501,7 +494,12 @@ fn apply_delete(app: &mut AppState, id: &str, scope: &RecurrenceScope) {
                 let cutoff = cutoff.clone();
                 app.events.retain(|_, e| {
                     if e.recurring_event_id.as_deref() == Some(&rid) {
-                        let e_start = e.start.date_time.as_deref().or(e.start.date.as_deref()).unwrap_or("");
+                        let e_start = e
+                            .start
+                            .date_time
+                            .as_deref()
+                            .or(e.start.date.as_deref())
+                            .unwrap_or("");
                         e_start < cutoff.as_str()
                     } else {
                         true
@@ -513,9 +511,8 @@ fn apply_delete(app: &mut AppState, id: &str, scope: &RecurrenceScope) {
         }
         RecurrenceScope::All => {
             if let Some(rid) = recurring_id {
-                app.events.retain(|_, e| {
-                    e.recurring_event_id.as_deref() != Some(&rid) && e.id != id
-                });
+                app.events
+                    .retain(|_, e| e.recurring_event_id.as_deref() != Some(&rid) && e.id != id);
             } else {
                 app.events.remove(id);
             }
@@ -525,11 +522,7 @@ fn apply_delete(app: &mut AppState, id: &str, scope: &RecurrenceScope) {
     app.auto_select_event();
 }
 
-async fn handle_command_input(
-    app: &mut AppState,
-    key: KeyEvent,
-    tx: &UnboundedSender<AppEvent>,
-) {
+async fn handle_command_input(app: &mut AppState, key: KeyEvent, tx: &UnboundedSender<AppEvent>) {
     let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
     let alt = key.modifiers.contains(KeyModifiers::ALT);
 
@@ -712,7 +705,10 @@ fn cmd_word_end_forward(s: &str, cursor: usize) -> usize {
 }
 
 fn cmd_complete_next(app: &mut AppState) {
-    let query = app.command_completion_query.get_or_insert_with(|| app.command_input.clone()).clone();
+    let query = app
+        .command_completion_query
+        .get_or_insert_with(|| app.command_input.clone())
+        .clone();
     let completions = crate::keybinds::commands::filter_commands(&query);
     let count = completions.len();
     if count == 0 {
@@ -728,7 +724,10 @@ fn cmd_complete_next(app: &mut AppState) {
 }
 
 fn cmd_complete_prev(app: &mut AppState) {
-    let query = app.command_completion_query.get_or_insert_with(|| app.command_input.clone()).clone();
+    let query = app
+        .command_completion_query
+        .get_or_insert_with(|| app.command_input.clone())
+        .clone();
     let completions = crate::keybinds::commands::filter_commands(&query);
     let count = completions.len();
     if count == 0 {
@@ -762,11 +761,7 @@ fn get_google_credentials(app: &AppState) -> Option<(String, String)> {
     Some((id, secret))
 }
 
-async fn handle_search_input(
-    app: &mut AppState,
-    key: KeyEvent,
-    _tx: &UnboundedSender<AppEvent>,
-) {
+async fn handle_search_input(app: &mut AppState, key: KeyEvent, _tx: &UnboundedSender<AppEvent>) {
     match key.code {
         KeyCode::Esc => {
             app.focus = FocusContext::Timeline;
@@ -968,11 +963,7 @@ fn execute_command(app: &mut AppState, cmd: &str, tx: &UnboundedSender<AppEvent>
     }
 }
 
-fn handle_login_prompt_input(
-    app: &mut AppState,
-    key: KeyEvent,
-    tx: &UnboundedSender<AppEvent>,
-) {
+fn handle_login_prompt_input(app: &mut AppState, key: KeyEvent, tx: &UnboundedSender<AppEvent>) {
     match key.code {
         KeyCode::Char('y') | KeyCode::Char('Y') => {
             app.pop_overlay();
@@ -1021,7 +1012,9 @@ fn cmd_login(app: &mut AppState, tx: &UnboundedSender<AppEvent>) {
 fn cmd_logout(app: &mut AppState, _tx: &UnboundedSender<AppEvent>) {
     let accounts = crate::auth::tokens::get_accounts();
     if accounts.is_empty() {
-        app.show_message(crate::state::message::Message::info("No accounts to log out from."));
+        app.show_message(crate::state::message::Message::info(
+            "No accounts to log out from.",
+        ));
         return;
     }
     for a in &accounts {
@@ -1032,7 +1025,9 @@ fn cmd_logout(app: &mut AppState, _tx: &UnboundedSender<AppEvent>) {
     app.events.clear();
     app.calendars.clear();
     app.is_logged_in = false;
-    app.show_message(crate::state::message::Message::success("Logged out from all accounts."));
+    app.show_message(crate::state::message::Message::success(
+        "Logged out from all accounts.",
+    ));
 }
 
 fn handle_dialog_input(app: &mut AppState, key: KeyEvent) {
@@ -1170,9 +1165,8 @@ fn refresh_goto_preview(app: &mut AppState) {
         app.goto_preview = None;
         return;
     }
-    app.goto_preview = parse_natural_date(&app.goto_input.clone()).map(|p| {
-        crate::domain::natural_date::format_parsed_preview(&p)
-    });
+    app.goto_preview = parse_natural_date(&app.goto_input.clone())
+        .map(|p| crate::domain::natural_date::format_parsed_preview(&p));
 }
 
 fn handle_messages_input(app: &mut AppState, key: KeyEvent) {
@@ -1308,25 +1302,23 @@ fn caldav_dialog_save(app: &mut AppState, tx: &UnboundedSender<AppEvent>) {
             app.pop_overlay();
             app.reload_accounts();
             let email = entry.email.clone();
-            app.show_message(crate::state::message::Message::success(
-                format!("CalDAV account {} saved. Run ':sync' to fetch events.", email),
-            ));
+            app.show_message(crate::state::message::Message::success(format!(
+                "CalDAV account {} saved. Run ':sync' to fetch events.",
+                email
+            )));
             tx.send(AppEvent::TriggerSync).ok();
         }
         Err(e) => {
             app.caldav_dialog.as_mut().unwrap().saving = false;
-            app.show_message(crate::state::message::Message::error(
-                format!("Failed to save: {}", e),
-            ));
+            app.show_message(crate::state::message::Message::error(format!(
+                "Failed to save: {}",
+                e
+            )));
         }
     }
 }
 
-fn handle_accounts_input(
-    app: &mut AppState,
-    key: KeyEvent,
-    tx: &UnboundedSender<AppEvent>,
-) {
+fn handle_accounts_input(app: &mut AppState, key: KeyEvent, tx: &UnboundedSender<AppEvent>) {
     let no_mods = key.modifiers == KeyModifiers::NONE;
 
     if app.accounts_delete_confirm {
@@ -1336,15 +1328,17 @@ fn handle_accounts_input(
                     let _ = crate::auth::tokens::remove_account(&account.email);
                     let _ = crate::db::sync_tokens::clear_all_sync_tokens();
                     app.reload_accounts();
-                    app.events.retain(|_, e| e.account_email.as_deref() != Some(&account.email));
+                    app.events
+                        .retain(|_, e| e.account_email.as_deref() != Some(&account.email));
                     app.rebuild_calendars_pub();
                     if app.accounts.is_empty() {
                         app.is_logged_in = false;
                         app.pop_overlay();
                     }
-                    app.show_message(crate::state::message::Message::success(
-                        format!("Removed {}", account.email),
-                    ));
+                    app.show_message(crate::state::message::Message::success(format!(
+                        "Removed {}",
+                        account.email
+                    )));
                 }
                 app.accounts_delete_confirm = false;
             }
@@ -1378,9 +1372,10 @@ fn handle_accounts_input(
                 let mut store = crate::auth::tokens::load_accounts_store();
                 store.default_account = Some(account.email.clone());
                 let _ = crate::auth::tokens::save_accounts_store(&store);
-                app.show_message(crate::state::message::Message::success(
-                    format!("{} is now the primary account", account.email),
-                ));
+                app.show_message(crate::state::message::Message::success(format!(
+                    "{} is now the primary account",
+                    account.email
+                )));
             }
         }
         _ => {}
@@ -1444,11 +1439,21 @@ fn apply_rsvp_single(app: &mut AppState, id: &str, status: &str, tx: &UnboundedS
             tokio::spawn(async move {
                 let gcal = crate::api::gcal::GcalClient::new(client_id, client_secret);
                 match gcal
-                    .update_attendance(&account_email, &calendar_id, &event_id, &status_str, &attendees)
+                    .update_attendance(
+                        &account_email,
+                        &calendar_id,
+                        &event_id,
+                        &status_str,
+                        &attendees,
+                    )
                     .await
                 {
                     Ok(()) => {
-                        tx_clone.send(AppEvent::RsvpComplete { event_id: event_id.clone() }).ok();
+                        tx_clone
+                            .send(AppEvent::RsvpComplete {
+                                event_id: event_id.clone(),
+                            })
+                            .ok();
                         tx_clone.send(AppEvent::TriggerSync).ok();
                     }
                     Err(e) => {
@@ -1465,7 +1470,13 @@ fn apply_rsvp_single(app: &mut AppState, id: &str, status: &str, tx: &UnboundedS
     )));
 }
 
-fn apply_rsvp(app: &mut AppState, id: &str, scope: &RecurrenceScope, status: &str, tx: &UnboundedSender<AppEvent>) {
+fn apply_rsvp(
+    app: &mut AppState,
+    id: &str,
+    scope: &RecurrenceScope,
+    status: &str,
+    tx: &UnboundedSender<AppEvent>,
+) {
     use crate::domain::event::ResponseStatus;
     let rs = match status {
         "accepted" => ResponseStatus::Accepted,
@@ -1479,7 +1490,10 @@ fn apply_rsvp(app: &mut AppState, id: &str, scope: &RecurrenceScope, status: &st
             apply_rsvp_single(app, id, status, tx);
         }
         RecurrenceScope::Following | RecurrenceScope::All => {
-            let recurring_id = app.events.get(id).and_then(|e| e.recurring_event_id.clone());
+            let recurring_id = app
+                .events
+                .get(id)
+                .and_then(|e| e.recurring_event_id.clone());
             let base_start = app
                 .events
                 .get(id)
@@ -1559,8 +1573,7 @@ async fn handle_notifications_input(
         }
 
         KeyCode::Char('k') | KeyCode::Up if no_mods => {
-            app.notifications_selected_index =
-                app.notifications_selected_index.saturating_sub(1);
+            app.notifications_selected_index = app.notifications_selected_index.saturating_sub(1);
         }
 
         KeyCode::Char('y') if no_mods => rsvp_selected_notification(app, "accepted", tx),
@@ -1578,7 +1591,9 @@ fn rsvp_selected_notification(app: &mut AppState, status: &str, tx: &UnboundedSe
         .map(|e| e.id.clone())
         .collect();
 
-    let idx = app.notifications_selected_index.min(invites.len().saturating_sub(1));
+    let idx = app
+        .notifications_selected_index
+        .min(invites.len().saturating_sub(1));
     if let Some(id) = invites.get(idx).cloned() {
         app.selected_event_id = Some(id.clone());
 
@@ -1681,11 +1696,7 @@ fn propose_time_send(app: &mut AppState) {
 
 // ── Phase 5: MeetWith dialog ──────────────────────────────────────────────────
 
-async fn handle_meet_with_input(
-    app: &mut AppState,
-    key: KeyEvent,
-    tx: &UnboundedSender<AppEvent>,
-) {
+async fn handle_meet_with_input(app: &mut AppState, key: KeyEvent, tx: &UnboundedSender<AppEvent>) {
     let no_mods = key.modifiers == KeyModifiers::NONE;
     let ctrl = key.modifiers == KeyModifiers::CONTROL;
     let shift = key.modifiers == KeyModifiers::SHIFT;
@@ -1740,7 +1751,11 @@ async fn meet_with_people_input(
         KeyCode::Tab | KeyCode::Enter if no_mods => {
             if let Some(ref mut mw) = app.meet_with {
                 let query = mw.search_query.clone();
-                let contacts: Vec<String> = mw.filtered_contacts().iter().map(|c| c.email.clone()).collect();
+                let contacts: Vec<String> = mw
+                    .filtered_contacts()
+                    .iter()
+                    .map(|c| c.email.clone())
+                    .collect();
                 if query.contains('@') {
                     mw.add_email(&query);
                     mw.search_query.clear();
@@ -1799,11 +1814,19 @@ async fn advance_to_slots(app: &mut AppState, tx: &UnboundedSender<AppEvent>) {
 
     tokio::spawn(async move {
         let Some(account_email) = account_email else {
-            tx_clone.send(AppEvent::FreeBusyError("No Google account configured".to_string())).ok();
+            tx_clone
+                .send(AppEvent::FreeBusyError(
+                    "No Google account configured".to_string(),
+                ))
+                .ok();
             return;
         };
         let (Some(client_id), Some(client_secret)) = (client_id, client_secret) else {
-            tx_clone.send(AppEvent::FreeBusyError("Google credentials not configured".to_string())).ok();
+            tx_clone
+                .send(AppEvent::FreeBusyError(
+                    "Google credentials not configured".to_string(),
+                ))
+                .ok();
             return;
         };
 
@@ -1817,7 +1840,10 @@ async fn advance_to_slots(app: &mut AppState, tx: &UnboundedSender<AppEvent>) {
             all_emails.push(account_email.clone());
         }
 
-        match client.query_free_busy(&account_email, &all_emails, &time_min, &time_max).await {
+        match client
+            .query_free_busy(&account_email, &all_emails, &time_min, &time_max)
+            .await
+        {
             Ok(by_person) => {
                 let combined = crate::domain::free_slots::combine_busy_periods(&by_person);
                 let opts = crate::domain::free_slots::FindSlotsOptions {

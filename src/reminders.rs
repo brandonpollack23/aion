@@ -53,14 +53,11 @@ pub fn start_reminder_checker(db: Arc<Mutex<rusqlite::Connection>>) {
                         continue;
                     }
 
-                    let trigger_time =
-                        start_utc - chrono::Duration::minutes(reminder.minutes);
+                    let trigger_time = start_utc - chrono::Duration::minutes(reminder.minutes);
                     let delta = now.signed_duration_since(trigger_time);
 
                     // Fire if we're within a 60-second window after the trigger time
-                    if delta >= chrono::Duration::zero()
-                        && delta < chrono::Duration::seconds(60)
-                    {
+                    if delta >= chrono::Duration::zero() && delta < chrono::Duration::seconds(60) {
                         let body = reminder_body(&start_utc, &now);
                         crate::notifications::send(&event.summary, &body);
                         fired.insert(key);

@@ -8,7 +8,7 @@ use ratatui::{
 
 use crate::state::app_state::AppState;
 use crate::state::caldav_dialog::{
-    CalDavDialogState, PRESET_NAMES, CD_FIELD_COUNT, CD_PASSWORD, CD_PASSWORD_CMD, CD_SERVER_URL,
+    CalDavDialogState, CD_FIELD_COUNT, CD_PASSWORD, CD_PASSWORD_CMD, CD_SERVER_URL, PRESET_NAMES,
 };
 
 const DIALOG_WIDTH: u16 = 66;
@@ -39,7 +39,10 @@ pub fn render_caldav_login_dialog(app: &AppState, frame: &mut Frame, area: Rect)
     let inner = block.inner(popup);
     frame.render_widget(block, popup);
 
-    let body_inner = inner.inner(Margin { horizontal: 1, vertical: 0 });
+    let body_inner = inner.inner(Margin {
+        horizontal: 1,
+        vertical: 0,
+    });
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -60,7 +63,10 @@ pub fn render_caldav_login_dialog(app: &AppState, frame: &mut Frame, area: Rect)
 
 fn render_preset_row(app: &AppState, ds: &CalDavDialogState, frame: &mut Frame, area: Rect) {
     let mut spans: Vec<Span> = Vec::new();
-    spans.push(Span::styled("Preset  ", Style::default().fg(app.theme.text_dim)));
+    spans.push(Span::styled(
+        "Preset  ",
+        Style::default().fg(app.theme.text_dim),
+    ));
     for (i, name) in PRESET_NAMES.iter().enumerate() {
         if i > 0 {
             spans.push(Span::raw("  "));

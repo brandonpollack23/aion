@@ -100,7 +100,8 @@ fn parse_callback_params(request: &str) -> HashMap<String, String> {
     // Use url crate for proper percent-decoding
     let dummy = format!("http://localhost{}", path);
     if let Ok(u) = url::Url::parse(&dummy) {
-        return u.query_pairs()
+        return u
+            .query_pairs()
             .map(|(k, v)| (k.into_owned(), v.into_owned()))
             .collect();
     }
@@ -153,20 +154,26 @@ pub async fn start_login_flow(
 
             if let Some(error) = params.get("error") {
                 let html = error_html(error);
-                let _ = stream.write_all(&send_html_response(200, "OK", &html)).await;
+                let _ = stream
+                    .write_all(&send_html_response(200, "OK", &html))
+                    .await;
                 anyhow::bail!("Google returned error: {}", error);
             }
 
             if params.get("state").map(|s| s.as_str()) != Some(state.as_str()) {
                 let html = error_html("Invalid state parameter (CSRF check failed)");
-                let _ = stream.write_all(&send_html_response(200, "OK", &html)).await;
+                let _ = stream
+                    .write_all(&send_html_response(200, "OK", &html))
+                    .await;
                 anyhow::bail!("Invalid state parameter");
             }
 
             let code = params.get("code").cloned().unwrap_or_default();
             if code.is_empty() {
                 let html = error_html("No authorization code received");
-                let _ = stream.write_all(&send_html_response(200, "OK", &html)).await;
+                let _ = stream
+                    .write_all(&send_html_response(200, "OK", &html))
+                    .await;
                 anyhow::bail!("No authorization code received");
             }
 
@@ -175,18 +182,24 @@ pub async fn start_login_flow(
                     Ok(user_info) => {
                         save_account_tokens(&user_info, tokens)?;
                         let html = success_html(&user_info.email);
-                        let _ = stream.write_all(&send_html_response(200, "OK", &html)).await;
+                        let _ = stream
+                            .write_all(&send_html_response(200, "OK", &html))
+                            .await;
                         return Ok(LoginResult { account: user_info });
                     }
                     Err(e) => {
                         let html = error_html(&e.to_string());
-                        let _ = stream.write_all(&send_html_response(200, "OK", &html)).await;
+                        let _ = stream
+                            .write_all(&send_html_response(200, "OK", &html))
+                            .await;
                         return Err(e);
                     }
                 },
                 Err(e) => {
                     let html = error_html(&e.to_string());
-                    let _ = stream.write_all(&send_html_response(200, "OK", &html)).await;
+                    let _ = stream
+                        .write_all(&send_html_response(200, "OK", &html))
+                        .await;
                     return Err(e);
                 }
             }

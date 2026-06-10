@@ -27,7 +27,10 @@ pub fn render_calendars_sidebar(app: &AppState, frame: &mut Frame, area: Rect) {
         .borders(Borders::RIGHT)
         .border_type(BorderType::Plain)
         .border_style(border_style)
-        .title(Span::styled("Calendars", Style::default().fg(app.theme.text_dim)));
+        .title(Span::styled(
+            "Calendars",
+            Style::default().fg(app.theme.text_dim),
+        ));
 
     let inner = block.inner(area);
     app.calendar_sidebar_height.set(inner.height);
@@ -58,7 +61,9 @@ pub fn render_calendars_sidebar(app: &AppState, frame: &mut Frame, area: Rect) {
 
         let is_selected = idx == app.selected_calendar_index;
         let is_enabled = !app.disabled_calendars.contains(&cal.key);
-        let cal_color = cal.color.unwrap_or_else(|| app.theme.calendar_color(&cal.key));
+        let cal_color = cal
+            .color
+            .unwrap_or_else(|| app.theme.calendar_color(&cal.key));
 
         let check = if is_enabled { "●" } else { "○" };
         let name = truncate(&cal.display_name, inner.width as usize - 4);

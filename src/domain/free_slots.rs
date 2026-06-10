@@ -88,10 +88,10 @@ pub fn find_meeting_slots(busy_periods: &[BusyPeriod], opts: &FindSlotsOptions) 
             continue;
         }
 
-        let day_start_naive = current_day
-            .and_time(NaiveTime::from_hms_opt(opts.working_hours_start, 0, 0).unwrap());
-        let day_end_naive = current_day
-            .and_time(NaiveTime::from_hms_opt(opts.working_hours_end, 0, 0).unwrap());
+        let day_start_naive =
+            current_day.and_time(NaiveTime::from_hms_opt(opts.working_hours_start, 0, 0).unwrap());
+        let day_end_naive =
+            current_day.and_time(NaiveTime::from_hms_opt(opts.working_hours_end, 0, 0).unwrap());
 
         let day_start = match Local.from_local_datetime(&day_start_naive).earliest() {
             Some(dt) => dt,

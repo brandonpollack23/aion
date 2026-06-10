@@ -46,11 +46,21 @@ pub fn render_confirm_modal(app: &AppState, frame: &mut Frame, area: Rect, is_de
         )),
         Line::raw(""),
         scope_line(app, scope, RecurrenceScope::This, "This event only"),
-        scope_line(app, scope, RecurrenceScope::Following, "This and all future"),
+        scope_line(
+            app,
+            scope,
+            RecurrenceScope::Following,
+            "This and all future",
+        ),
     ];
 
     if !is_rsvp {
-        lines.push(scope_line(app, scope, RecurrenceScope::All, "All in series"));
+        lines.push(scope_line(
+            app,
+            scope,
+            RecurrenceScope::All,
+            "All in series",
+        ));
     }
 
     lines.push(Line::raw(""));
@@ -79,8 +89,5 @@ fn scope_line<'a>(
     } else {
         Style::default().fg(app.theme.text_secondary)
     };
-    Line::from(vec![
-        Span::styled(radio, style),
-        Span::styled(label, style),
-    ])
+    Line::from(vec![Span::styled(radio, style), Span::styled(label, style)])
 }

@@ -16,7 +16,12 @@ pub fn render_notifications_panel(app: &AppState, frame: &mut Frame, area: Rect)
     let height = 16u16.min(area.height);
     let x = area.x + area.width.saturating_sub(width);
     let y = area.y + area.height.saturating_sub(height + 1);
-    let rect = Rect { x, y, width, height };
+    let rect = Rect {
+        x,
+        y,
+        width,
+        height,
+    };
 
     frame.render_widget(Clear, rect);
 
@@ -31,16 +36,19 @@ pub fn render_notifications_panel(app: &AppState, frame: &mut Frame, area: Rect)
                 format!(" ({})", invites.len())
             }
         ))
-        .title_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD));
+        .title_style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        );
 
     let inner = block.inner(rect);
     frame.render_widget(block, rect);
 
     if invites.is_empty() {
-        let msg = Paragraph::new("No pending invites 🎉")
-            .style(Style::default().fg(Color::DarkGray));
-        let footer = Paragraph::new("esc:close")
-            .style(Style::default().fg(Color::DarkGray));
+        let msg =
+            Paragraph::new("No pending invites 🎉").style(Style::default().fg(Color::DarkGray));
+        let footer = Paragraph::new("esc:close").style(Style::default().fg(Color::DarkGray));
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Fill(1), Constraint::Length(1)])
@@ -55,7 +63,9 @@ pub fn render_notifications_panel(app: &AppState, frame: &mut Frame, area: Rect)
         .constraints([Constraint::Fill(1), Constraint::Length(1)])
         .split(inner);
 
-    let selected = app.notifications_selected_index.min(invites.len().saturating_sub(1));
+    let selected = app
+        .notifications_selected_index
+        .min(invites.len().saturating_sub(1));
 
     let items: Vec<ListItem> = invites
         .iter()
@@ -82,7 +92,12 @@ pub fn render_notifications_panel(app: &AppState, frame: &mut Frame, area: Rect)
                     Line::from(vec![
                         Span::styled("▸ ", Style::default().fg(Color::Yellow)),
                         Span::styled("! ", Style::default().fg(Color::Yellow)),
-                        Span::styled(title, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                        Span::styled(
+                            title,
+                            Style::default()
+                                .fg(Color::White)
+                                .add_modifier(Modifier::BOLD),
+                        ),
                     ]),
                     Line::from(vec![
                         Span::raw("   "),
@@ -115,19 +130,17 @@ pub fn render_notifications_panel(app: &AppState, frame: &mut Frame, area: Rect)
     let list = List::new(items);
     frame.render_stateful_widget(list, chunks[0], &mut list_state);
 
-    let footer = Paragraph::new(
-        Line::from(vec![
-            Span::styled("j/k", Style::default().fg(Color::DarkGray)),
-            Span::raw(":nav  "),
-            Span::styled("y", Style::default().fg(Color::Green)),
-            Span::raw(":accept  "),
-            Span::styled("n", Style::default().fg(Color::Red)),
-            Span::raw(":decline  "),
-            Span::styled("m", Style::default().fg(Color::Yellow)),
-            Span::raw(":maybe  "),
-            Span::styled("esc", Style::default().fg(Color::DarkGray)),
-        ]),
-    )
+    let footer = Paragraph::new(Line::from(vec![
+        Span::styled("j/k", Style::default().fg(Color::DarkGray)),
+        Span::raw(":nav  "),
+        Span::styled("y", Style::default().fg(Color::Green)),
+        Span::raw(":accept  "),
+        Span::styled("n", Style::default().fg(Color::Red)),
+        Span::raw(":decline  "),
+        Span::styled("m", Style::default().fg(Color::Yellow)),
+        Span::raw(":maybe  "),
+        Span::styled("esc", Style::default().fg(Color::DarkGray)),
+    ]))
     .style(Style::default().fg(Color::DarkGray));
     frame.render_widget(footer, chunks[1]);
 }

@@ -1,6 +1,6 @@
 [package]
 name = "aion-calendar"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 description = "A terminal calendar and event manager"
 license = "MIT"
@@ -14,7 +14,7 @@ path = "src/main.rs"
 ratatui = { version = "0.29", features = ["crossterm"] }
 crossterm = { version = "0.28", features = ["event-stream"] }
 tokio = { version = "1", features = ["full"] }
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = "0.10"
 serde = { version = "1", features = ["derive"] }
@@ -31,13 +31,14 @@ reqwest = { version = "0.12", default-features = false, features = [
   "rustls-tls",
   "json",
 ] }
-sha2 = "0.10"
+sha2 = "0.11"
 base64 = "0.22"
 rand = "0.8"
 url = "2"
 roxmltree = "0.20"
 uuid = { version = "1", features = ["v4"] }
 notify-rust = "4"
+iana-time-zone = "0.1"
 
 [package.metadata.binstall]
 pkg-fmt = "tzstd"

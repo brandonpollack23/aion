@@ -51,10 +51,7 @@ pub fn render_splash(app: &AppState, frame: &mut Frame, area: Rect) {
                 format!("{} ", spinner),
                 Style::default().fg(app.theme.accent_primary),
             ),
-            Span::styled(
-                "Loading events…",
-                Style::default().fg(app.theme.text_dim),
-            ),
+            Span::styled("Loading events…", Style::default().fg(app.theme.text_dim)),
         ]))
         .alignment(Alignment::Center),
         chunks[1],

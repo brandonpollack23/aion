@@ -90,10 +90,7 @@ pub fn is_token_expired(tokens: &TokenData) -> bool {
 }
 
 pub fn get_accounts() -> Vec<AccountData> {
-    let mut accounts: Vec<AccountData> = load_accounts_store()
-        .accounts
-        .into_values()
-        .collect();
+    let mut accounts: Vec<AccountData> = load_accounts_store().accounts.into_values().collect();
 
     // Include CalDAV accounts from config.toml
     let config = crate::config::loader::load_config();
@@ -198,7 +195,10 @@ pub async fn refresh_access_token(
     if !res.status().is_success() {
         let text = res.text().await.unwrap_or_default();
         if text.contains("invalid_grant") {
-            anyhow::bail!("Token expired or revoked for {}. Run ':login' to re-authenticate.", email);
+            anyhow::bail!(
+                "Token expired or revoked for {}. Run ':login' to re-authenticate.",
+                email
+            );
         }
         anyhow::bail!("Token refresh failed: {}", text);
     }
@@ -251,6 +251,7 @@ pub async fn get_valid_access_token(
     if !is_token_expired(&tokens) {
         return Ok(Some(tokens.access_token));
     }
-    let refreshed = refresh_access_token(email, &tokens.refresh_token, client_id, client_secret).await?;
+    let refreshed =
+        refresh_access_token(email, &tokens.refresh_token, client_id, client_secret).await?;
     Ok(Some(refreshed.access_token))
 }

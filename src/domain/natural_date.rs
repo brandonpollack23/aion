@@ -3,7 +3,7 @@ use chrono::{Datelike, Duration, Local, NaiveDate, Weekday};
 #[derive(Debug, Clone)]
 pub struct ParsedDate {
     pub date: NaiveDate,
-    pub time: Option<(u32, u32)>,  // (hour 0-23, minute 0-59)
+    pub time: Option<(u32, u32)>, // (hour 0-23, minute 0-59)
     pub end_date: Option<NaiveDate>,
     pub end_time: Option<(u32, u32)>,
     pub is_date_range: bool,
@@ -157,7 +157,12 @@ fn parse_date_time(s: &str, today: NaiveDate) -> Option<(NaiveDate, Option<(u32,
     let sl = sl.trim();
 
     // Relative keywords: today, tomorrow, yesterday, tonight
-    for (kw, offset) in &[("tonight", 0i64), ("today", 0), ("tomorrow", 1), ("yesterday", -1)] {
+    for (kw, offset) in &[
+        ("tonight", 0i64),
+        ("today", 0),
+        ("tomorrow", 1),
+        ("yesterday", -1),
+    ] {
         if sl == *kw {
             return Some((today + Duration::days(*offset), None));
         }
@@ -177,8 +182,18 @@ fn parse_date_time(s: &str, today: NaiveDate) -> Option<(NaiveDate, Option<(u32,
             if let Some(wd) = parse_weekday(&parts[0].to_lowercase()) {
                 let force_next = *prefix == "next ";
                 let date = next_weekday_from(today, wd, force_next);
-                let time_str = parts.get(1).map(|t| strip_at_prefix(t.trim())).unwrap_or("");
-                return Some((date, if time_str.is_empty() { None } else { parse_time(time_str) }));
+                let time_str = parts
+                    .get(1)
+                    .map(|t| strip_at_prefix(t.trim()))
+                    .unwrap_or("");
+                return Some((
+                    date,
+                    if time_str.is_empty() {
+                        None
+                    } else {
+                        parse_time(time_str)
+                    },
+                ));
             }
         }
     }
@@ -188,8 +203,18 @@ fn parse_date_time(s: &str, today: NaiveDate) -> Option<(NaiveDate, Option<(u32,
         let parts: Vec<&str> = s.trim().splitn(2, ' ').collect();
         if let Some(wd) = parse_weekday(&parts[0].to_lowercase()) {
             let date = next_weekday_from(today, wd, false);
-            let time_str = parts.get(1).map(|t| strip_at_prefix(t.trim())).unwrap_or("");
-            return Some((date, if time_str.is_empty() { None } else { parse_time(time_str) }));
+            let time_str = parts
+                .get(1)
+                .map(|t| strip_at_prefix(t.trim()))
+                .unwrap_or("");
+            return Some((
+                date,
+                if time_str.is_empty() {
+                    None
+                } else {
+                    parse_time(time_str)
+                },
+            ));
         }
     }
 
@@ -206,8 +231,18 @@ fn parse_date_time(s: &str, today: NaiveDate) -> Option<(NaiveDate, Option<(u32,
                     _ => return None,
                 };
                 let date = today + Duration::days(days);
-                let time_str = parts.get(2).map(|t| strip_at_prefix(t.trim())).unwrap_or("");
-                return Some((date, if time_str.is_empty() { None } else { parse_time(time_str) }));
+                let time_str = parts
+                    .get(2)
+                    .map(|t| strip_at_prefix(t.trim()))
+                    .unwrap_or("");
+                return Some((
+                    date,
+                    if time_str.is_empty() {
+                        None
+                    } else {
+                        parse_time(time_str)
+                    },
+                ));
             }
         }
     }
@@ -272,13 +307,25 @@ fn parse_time(s: &str) -> Option<(u32, u32)> {
         let sl = rest.to_lowercase();
         let is_pm = sl.ends_with("pm");
         let is_am = sl.ends_with("am");
-        let m_str = if is_pm || is_am { &rest[..rest.len() - 2] } else { rest };
+        let m_str = if is_pm || is_am {
+            &rest[..rest.len() - 2]
+        } else {
+            rest
+        };
         if let (Ok(h), Ok(m)) = (h_str.parse::<u32>(), m_str.parse::<u32>()) {
             if m < 60 {
                 let h24 = if is_pm {
-                    if h == 12 { 12 } else { (h + 12) % 24 }
+                    if h == 12 {
+                        12
+                    } else {
+                        (h + 12) % 24
+                    }
                 } else if is_am {
-                    if h == 12 { 0 } else { h }
+                    if h == 12 {
+                        0
+                    } else {
+                        h
+                    }
                 } else {
                     h
                 };
@@ -297,9 +344,17 @@ fn parse_time(s: &str) -> Option<(u32, u32)> {
         let h_str = &sl[..sl.len() - 2].trim();
         if let Ok(h) = h_str.parse::<u32>() {
             let h24 = if is_pm {
-                if h == 12 { 12 } else { (h + 12) % 24 }
+                if h == 12 {
+                    12
+                } else {
+                    (h + 12) % 24
+                }
             } else {
-                if h == 12 { 0 } else { h }
+                if h == 12 {
+                    0
+                } else {
+                    h
+                }
             };
             if h24 < 24 {
                 return Some((h24, 0));
@@ -345,17 +400,14 @@ fn adjust_year(d: NaiveDate, today: NaiveDate) -> NaiveDate {
 
 fn parse_month_day(s: &str, today: NaiveDate) -> Option<NaiveDate> {
     for fmt in &[
-        "%b %d %Y",
-        "%B %d %Y",
-        "%b %d",
-        "%B %d",
-        "%d %b %Y",
-        "%d %B %Y",
-        "%d %b",
-        "%d %B",
+        "%b %d %Y", "%B %d %Y", "%b %d", "%B %d", "%d %b %Y", "%d %B %Y", "%d %b", "%d %B",
     ] {
         if let Ok(d) = NaiveDate::parse_from_str(s, fmt) {
-            return Some(if fmt.contains("%Y") { d } else { adjust_year(d, today) });
+            return Some(if fmt.contains("%Y") {
+                d
+            } else {
+                adjust_year(d, today)
+            });
         }
     }
     None
@@ -375,11 +427,22 @@ pub fn format_parsed_preview(parsed: &ParsedDate) -> String {
 
     let time_str = if let Some((h, m)) = parsed.time {
         let ampm = if h < 12 { "AM" } else { "PM" };
-        let h12 = match h { 0 => 12, h if h > 12 => h - 12, h => h };
+        let h12 = match h {
+            0 => 12,
+            h if h > 12 => h - 12,
+            h => h,
+        };
         if let Some((eh, em)) = parsed.end_time {
             let eampm = if eh < 12 { "AM" } else { "PM" };
-            let eh12 = match eh { 0 => 12, h if h > 12 => h - 12, h => h };
-            format!(" at {:02}:{:02} {} – {:02}:{:02} {}", h12, m, ampm, eh12, em, eampm)
+            let eh12 = match eh {
+                0 => 12,
+                h if h > 12 => h - 12,
+                h => h,
+            };
+            format!(
+                " at {:02}:{:02} {} – {:02}:{:02} {}",
+                h12, m, ampm, eh12, em, eampm
+            )
         } else {
             format!(" at {:02}:{:02} {}", h12, m, ampm)
         }

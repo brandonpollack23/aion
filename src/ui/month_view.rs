@@ -71,7 +71,12 @@ fn render_month_title(app: &AppState, frame: &mut Frame, area: Rect, year: i32, 
     let padding = area.width.saturating_sub(title_width + hint_width);
 
     let line = Line::from(vec![
-        Span::styled(title, Style::default().add_modifier(Modifier::BOLD).fg(app.theme.accent_primary)),
+        Span::styled(
+            title,
+            Style::default()
+                .add_modifier(Modifier::BOLD)
+                .fg(app.theme.accent_primary),
+        ),
         Span::raw(" ".repeat(padding as usize)),
         Span::styled(hint, Style::default().fg(app.theme.text_dim)),
     ]);
@@ -87,16 +92,29 @@ fn render_dow_header(app: &AppState, frame: &mut Frame, area: Rect) {
 
     for (i, &label) in DOW_LABELS.iter().enumerate() {
         let is_weekend = i == 0 || i == 6;
-        let color = if is_weekend { app.theme.text_weekend } else { app.theme.text_secondary };
+        let color = if is_weekend {
+            app.theme.text_weekend
+        } else {
+            app.theme.text_secondary
+        };
         let line = Line::from(vec![
             Span::raw(" "),
-            Span::styled(label, Style::default().fg(color).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                label,
+                Style::default().fg(color).add_modifier(Modifier::BOLD),
+            ),
         ]);
         frame.render_widget(Paragraph::new(line), cols[i]);
     }
 }
 
-fn render_day_cell(app: &AppState, frame: &mut Frame, area: Rect, day: NaiveDate, current_month: u32) {
+fn render_day_cell(
+    app: &AppState,
+    frame: &mut Frame,
+    area: Rect,
+    day: NaiveDate,
+    current_month: u32,
+) {
     let is_selected = day == app.selected_day;
     let today = is_today(day);
     let in_month = day.month() == current_month;
@@ -140,7 +158,10 @@ fn render_day_cell(app: &AppState, frame: &mut Frame, area: Rect, day: NaiveDate
     };
 
     let day_style = if is_selected {
-        Style::default().fg(num_color).bg(app.theme.selection_bg).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(num_color)
+            .bg(app.theme.selection_bg)
+            .add_modifier(Modifier::BOLD)
     } else if today {
         Style::default().fg(num_color).add_modifier(Modifier::BOLD)
     } else {
@@ -168,7 +189,10 @@ fn render_day_cell(app: &AppState, frame: &mut Frame, area: Rect, day: NaiveDate
         }
         let color = app.theme.calendar_color(&event.calendar_key());
         let truncated = truncate(&event.summary, cell_width);
-        event_lines.push(Line::from(Span::styled(truncated, Style::default().fg(color))));
+        event_lines.push(Line::from(Span::styled(
+            truncated,
+            Style::default().fg(color),
+        )));
     }
 
     // Build all lines: day number first, then events
@@ -195,7 +219,11 @@ fn truncate(s: &str, max_width: usize) -> String {
 }
 
 fn last_day_of_month(year: i32, month: u32) -> NaiveDate {
-    let (next_year, next_month) = if month == 12 { (year + 1, 1) } else { (year, month + 1) };
+    let (next_year, next_month) = if month == 12 {
+        (year + 1, 1)
+    } else {
+        (year, month + 1)
+    };
     NaiveDate::from_ymd_opt(next_year, next_month, 1)
         .and_then(|d| d.pred_opt())
         .unwrap_or_else(|| NaiveDate::from_ymd_opt(year, month, 28).unwrap())
@@ -203,10 +231,18 @@ fn last_day_of_month(year: i32, month: u32) -> NaiveDate {
 
 fn month_name(month: u32) -> &'static str {
     match month {
-        1 => "January", 2 => "February", 3 => "March", 4 => "April",
-        5 => "May", 6 => "June", 7 => "July", 8 => "August",
-        9 => "September", 10 => "October", 11 => "November", 12 => "December",
+        1 => "January",
+        2 => "February",
+        3 => "March",
+        4 => "April",
+        5 => "May",
+        6 => "June",
+        7 => "July",
+        8 => "August",
+        9 => "September",
+        10 => "October",
+        11 => "November",
+        12 => "December",
         _ => "Unknown",
     }
 }
-

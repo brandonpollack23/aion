@@ -43,12 +43,17 @@ pub fn sync_key(account_email: &str, calendar_id: &str) -> String {
 
 pub fn get_sync_token(account_email: &str, calendar_id: &str) -> Option<String> {
     let store = load_sync_tokens();
-    store.tokens.get(&sync_key(account_email, calendar_id)).cloned()
+    store
+        .tokens
+        .get(&sync_key(account_email, calendar_id))
+        .cloned()
 }
 
 pub fn set_sync_token(account_email: &str, calendar_id: &str, token: &str) -> Result<()> {
     let mut store = load_sync_tokens();
-    store.tokens.insert(sync_key(account_email, calendar_id), token.to_string());
+    store
+        .tokens
+        .insert(sync_key(account_email, calendar_id), token.to_string());
     save_sync_tokens(&store)
 }
 

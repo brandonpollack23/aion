@@ -9,7 +9,10 @@ use ratatui::{
 
 use crate::domain::event::{CalEvent, EventType, ResponseStatus};
 use crate::domain::layout::{minutes_to_slot, DayLayout, TimedEventLayout, SLOTS_PER_HOUR};
-use crate::domain::time::{format_day_header, format_hour_label, format_time, get_event_end, get_event_start, get_now_minutes, is_today};
+use crate::domain::time::{
+    format_day_header, format_hour_label, format_time, get_event_end, get_event_start,
+    get_now_minutes, is_today,
+};
 use crate::state::app_state::AppState;
 use crate::state::focus::FocusContext;
 
@@ -34,7 +37,11 @@ pub fn render_timeline_column(
     let is_col_focused = is_timeline_focused && app.focused_column == col_idx;
     let today = is_today(day);
     let now_minutes = if today { get_now_minutes() } else { -1 };
-    let now_slot = if now_minutes >= 0 { minutes_to_slot(now_minutes) } else { -1 };
+    let now_slot = if now_minutes >= 0 {
+        minutes_to_slot(now_minutes)
+    } else {
+        -1
+    };
 
     let layout = app.day_layout(day);
 
@@ -45,14 +52,27 @@ pub fn render_timeline_column(
     let timeline_height = area.height.saturating_sub(1 + all_day_lines as u16) as usize;
 
     // === Header row ===
-    render_column_header(app, frame, area.x, header_y, area.width, day, is_col_focused, today, show_hour_labels);
+    render_column_header(
+        app,
+        frame,
+        area.x,
+        header_y,
+        area.width,
+        day,
+        is_col_focused,
+        today,
+        show_hour_labels,
+    );
 
     // === All-day section ===
     if all_day_lines > 0 {
         render_all_day_section(
-            app, frame,
+            app,
+            frame,
             Rect::new(area.x, all_day_y, area.width, all_day_lines as u16),
-            &layout, max_all_day_count, show_hour_labels,
+            &layout,
+            max_all_day_count,
+            show_hour_labels,
         );
     }
 
@@ -60,7 +80,14 @@ pub fn render_timeline_column(
     if timeline_height > 0 {
         let timeline_rect = Rect::new(area.x, timeline_y, area.width, timeline_height as u16);
         render_timeline_grid(
-            app, frame, timeline_rect, &layout, day, now_slot, show_hour_labels, timeline_height,
+            app,
+            frame,
+            timeline_rect,
+            &layout,
+            day,
+            now_slot,
+            show_hour_labels,
+            timeline_height,
         );
     }
 }
@@ -68,35 +95,53 @@ pub fn render_timeline_column(
 fn render_column_header(
     app: &AppState,
     frame: &mut Frame,
-    x: u16, y: u16, width: u16,
+    x: u16,
+    y: u16,
+    width: u16,
     day: NaiveDate,
     is_focused: bool,
     today: bool,
     show_hour_labels: bool,
 ) {
-    let label_width = if show_hour_labels { HOUR_LABEL_WIDTH as u16 } else { 0 };
+    let label_width = if show_hour_labels {
+        HOUR_LABEL_WIDTH as u16
+    } else {
+        0
+    };
     let text_x = x + label_width;
     let text_width = width.saturating_sub(label_width);
-    if text_width == 0 { return; }
+    if text_width == 0 {
+        return;
+    }
 
     let header_text = format_day_header(day);
     let today_suffix = if today { "  today" } else { "" };
 
     let prefix = if is_focused { "▶ " } else { "  " };
-    let header_color = if is_focused { app.theme.accent_primary } else { app.theme.text_dim };
+    let header_color = if is_focused {
+        app.theme.accent_primary
+    } else {
+        app.theme.text_dim
+    };
     let today_color = app.theme.accent_success;
 
     let full = format!("{}{}{}", prefix, header_text, today_suffix);
     let truncated = truncate_str(&full, text_width as usize);
 
     // Build spans: prefix + header + today
-    let header_part = format!("{}{}", prefix, &header_text[..header_text.len().min(text_width as usize - prefix.len())]);
+    let header_part = format!(
+        "{}{}",
+        prefix,
+        &header_text[..header_text.len().min(text_width as usize - prefix.len())]
+    );
     let line = if today && header_part.len() + today_suffix.len() < text_width as usize {
         Line::from(vec![
             Span::styled(
                 format!("{}{}", prefix, header_text),
                 if is_focused {
-                    Style::default().fg(header_color).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(header_color)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(header_color)
                 },
@@ -107,7 +152,9 @@ fn render_column_header(
         Line::from(Span::styled(
             truncated,
             if is_focused {
-                Style::default().fg(header_color).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(header_color)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(header_color)
             },
@@ -128,16 +175,40 @@ fn render_all_day_section(
 ) {
     let events = &layout.all_day_events;
     let should_collapse = max_all_day_count > COLLAPSE_THRESHOLD && !app.all_day_expanded;
-    let visible_count = if should_collapse { COLLAPSE_THRESHOLD } else { max_all_day_count };
+    let visible_count = if should_collapse {
+        COLLAPSE_THRESHOLD
+    } else {
+        max_all_day_count
+    };
 
     for row in 0..area.height as usize {
         let y = area.y + row as u16;
         if row < visible_count {
             let event = events.get(row);
-            render_all_day_event_row(app, frame, area.x, y, area.width, event, show_hour_labels, row == 0, &layout.all_day_events);
+            render_all_day_event_row(
+                app,
+                frame,
+                area.x,
+                y,
+                area.width,
+                event,
+                show_hour_labels,
+                row == 0,
+                &layout.all_day_events,
+            );
         } else {
             // Collapse row or empty row
-            render_all_day_empty_row(app, frame, area.x, y, area.width, show_hour_labels, events, should_collapse, visible_count);
+            render_all_day_empty_row(
+                app,
+                frame,
+                area.x,
+                y,
+                area.width,
+                show_hour_labels,
+                events,
+                should_collapse,
+                visible_count,
+            );
         }
     }
 }
@@ -145,13 +216,19 @@ fn render_all_day_section(
 fn render_all_day_event_row(
     app: &AppState,
     frame: &mut Frame,
-    x: u16, y: u16, width: u16,
+    x: u16,
+    y: u16,
+    width: u16,
     event: Option<&CalEvent>,
     show_hour_labels: bool,
     is_first: bool,
     all_events: &[CalEvent],
 ) {
-    let label_w = if show_hour_labels { HOUR_LABEL_WIDTH as u16 } else { 0 };
+    let label_w = if show_hour_labels {
+        HOUR_LABEL_WIDTH as u16
+    } else {
+        0
+    };
     let selected = &app.selected_event_id;
     let is_focused = app.focus == FocusContext::Timeline;
 
@@ -174,7 +251,9 @@ fn render_all_day_event_row(
 
     let content_x = x + label_w + 1;
     let content_width = width.saturating_sub(label_w + 1);
-    if content_width == 0 { return; }
+    if content_width == 0 {
+        return;
+    }
 
     if let Some(event) = event {
         let is_selected = selected.as_deref() == Some(&event.id);
@@ -204,13 +283,19 @@ fn render_all_day_event_row(
 fn render_all_day_empty_row(
     app: &AppState,
     frame: &mut Frame,
-    x: u16, y: u16, width: u16,
+    x: u16,
+    y: u16,
+    width: u16,
     show_hour_labels: bool,
     events: &[CalEvent],
     is_collapse_row: bool,
     visible_count: usize,
 ) {
-    let label_w = if show_hour_labels { HOUR_LABEL_WIDTH as u16 } else { 0 };
+    let label_w = if show_hour_labels {
+        HOUR_LABEL_WIDTH as u16
+    } else {
+        0
+    };
 
     if label_w < width {
         let grid = Paragraph::new(Line::from(Span::styled(
@@ -253,11 +338,18 @@ fn render_timeline_grid(
 
     for (row_idx, slot) in (start..end).enumerate() {
         let y = area.y + row_idx as u16;
-        if y >= area.y + area.height { break; }
+        if y >= area.y + area.height {
+            break;
+        }
         render_slot_row(
-            app, frame,
-            area.x, y, area.width,
-            slot as i64, layout, now_slot,
+            app,
+            frame,
+            area.x,
+            y,
+            area.width,
+            slot as i64,
+            layout,
+            now_slot,
             show_hour_labels,
         );
     }
@@ -266,13 +358,19 @@ fn render_timeline_grid(
 fn render_slot_row(
     app: &AppState,
     frame: &mut Frame,
-    x: u16, y: u16, width: u16,
+    x: u16,
+    y: u16,
+    width: u16,
     slot_index: i64,
     layout: &DayLayout,
     now_slot: i64,
     show_hour_labels: bool,
 ) {
-    let label_w = if show_hour_labels { HOUR_LABEL_WIDTH as u16 } else { 0 };
+    let label_w = if show_hour_labels {
+        HOUR_LABEL_WIDTH as u16
+    } else {
+        0
+    };
     let hour = (slot_index / SLOTS_PER_HOUR) as u32;
     let slot_in_hour = slot_index % SLOTS_PER_HOUR;
     let is_hour_start = slot_in_hour == 0;
@@ -293,7 +391,9 @@ fn render_slot_row(
         };
 
         let label_style = if is_now_slot {
-            Style::default().fg(app.theme.accent_error).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(app.theme.accent_error)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(app.theme.text_dim)
         };
@@ -316,10 +416,18 @@ fn render_slot_row(
         let (grid_char, grid_style) = if is_now_slot {
             ("◀", Style::default().fg(app.theme.accent_error))
         } else if is_hour_start {
-            let color = if has_overlap { app.theme.accent_warning } else { app.theme.text_dim };
+            let color = if has_overlap {
+                app.theme.accent_warning
+            } else {
+                app.theme.text_dim
+            };
             ("┼", Style::default().fg(color))
         } else {
-            let color = if has_overlap { app.theme.accent_warning } else { app.theme.text_dim };
+            let color = if has_overlap {
+                app.theme.accent_warning
+            } else {
+                app.theme.text_dim
+            };
             ("│", Style::default().fg(color))
         };
 
@@ -332,30 +440,37 @@ fn render_slot_row(
     // Event content area (after 1-char padding)
     let content_x = x + label_w + 2; // +1 grid, +1 padding
     let content_width = width.saturating_sub(label_w + 2);
-    if content_width == 0 { return; }
+    if content_width == 0 {
+        return;
+    }
 
-    render_slot_events(
-        app, frame,
-        content_x, y, content_width,
-        slot_index, layout,
-    );
+    render_slot_events(app, frame, content_x, y, content_width, slot_index, layout);
 }
 
 fn render_slot_events(
     app: &AppState,
     frame: &mut Frame,
-    x: u16, y: u16, width: u16,
+    x: u16,
+    y: u16,
+    width: u16,
     slot_index: i64,
     layout: &DayLayout,
 ) {
     let slot_events = layout.get_events_for_slot(slot_index);
-    if slot_events.is_empty() { return; }
+    if slot_events.is_empty() {
+        return;
+    }
 
     // Find max columns across all events in this slot
-    let max_cols = slot_events.iter().map(|l| l.total_columns).max().unwrap_or(1);
+    let max_cols = slot_events
+        .iter()
+        .map(|l| l.total_columns)
+        .max()
+        .unwrap_or(1);
 
     // Build a map column → event_layout
-    let mut by_col: std::collections::HashMap<usize, &TimedEventLayout> = std::collections::HashMap::new();
+    let mut by_col: std::collections::HashMap<usize, &TimedEventLayout> =
+        std::collections::HashMap::new();
     for layout in &slot_events {
         by_col.insert(layout.column, layout);
     }
@@ -369,7 +484,9 @@ fn render_slot_events(
         } else {
             col_width as u16
         };
-        if this_col_width == 0 { continue; }
+        if this_col_width == 0 {
+            continue;
+        }
 
         if let Some(tl) = by_col.get(&col) {
             render_event_cell(app, frame, col_x, y, this_col_width, tl, slot_index);
@@ -380,7 +497,9 @@ fn render_slot_events(
 fn render_event_cell(
     app: &AppState,
     frame: &mut Frame,
-    x: u16, y: u16, width: u16,
+    x: u16,
+    y: u16,
+    width: u16,
     tl: &TimedEventLayout,
     slot_index: i64,
 ) {
@@ -396,8 +515,9 @@ fn render_event_cell(
     let is_declined = response_status == Some(&ResponseStatus::Declined);
 
     // Check if past
-    let is_past = get_event_end(event, &app.timezone)
-        .map_or(false, |end| end < chrono::Local::now().with_timezone(&end.timezone()));
+    let is_past = get_event_end(event, &app.timezone).map_or(false, |end| {
+        end < chrono::Local::now().with_timezone(&end.timezone())
+    });
     let should_dim = is_declined || is_past;
 
     let text_style = if is_highlighted {
@@ -415,9 +535,14 @@ fn render_event_cell(
         let start_dt = get_event_start(event, &app.timezone);
         let time_str = start_dt.map(|dt| format_time(&dt)).unwrap_or_default();
         let title = event.display_title();
-        let dot_color = if is_highlighted { app.theme.selection_text } else { color };
+        let dot_color = if is_highlighted {
+            app.theme.selection_text
+        } else {
+            color
+        };
         let arrow = if is_highlighted { "▸" } else { " " };
-        let indicator = crate::domain::event::get_attendance_indicator(response_status, has_attendees);
+        let indicator =
+            crate::domain::event::get_attendance_indicator(response_status, has_attendees);
         format!("●{}{} {}{}", arrow, time_str, indicator, title)
     } else {
         "│".to_string()

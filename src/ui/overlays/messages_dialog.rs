@@ -71,10 +71,7 @@ pub fn render_messages_dialog(app: &AppState, frame: &mut Frame, area: Rect) {
                     format!("{:<8} ", time_str),
                     Style::default().fg(app.theme.text_dim),
                 ),
-                Span::styled(
-                    format!("{} ", icon),
-                    Style::default().fg(color),
-                ),
+                Span::styled(format!("{} ", icon), Style::default().fg(color)),
                 Span::styled(
                     msg.text.clone(),
                     Style::default().fg(match msg.msg_type {
@@ -96,8 +93,5 @@ pub fn render_messages_dialog(app: &AppState, frame: &mut Frame, area: Rect) {
         )));
     }
 
-    frame.render_widget(
-        Paragraph::new(lines).wrap(Wrap { trim: false }),
-        inner,
-    );
+    frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), inner);
 }

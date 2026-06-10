@@ -56,7 +56,11 @@ pub fn render_status_bar(app: &AppState, frame: &mut Frame, area: Rect) {
         ];
         if invite_count > 0 {
             spans.push(Span::styled(
-                format!("  ! {} invite{}", invite_count, if invite_count == 1 { "" } else { "s" }),
+                format!(
+                    "  ! {} invite{}",
+                    invite_count,
+                    if invite_count == 1 { "" } else { "s" }
+                ),
                 Style::default().fg(app.theme.accent_warning),
             ));
         }

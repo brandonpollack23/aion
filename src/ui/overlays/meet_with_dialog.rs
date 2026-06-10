@@ -23,7 +23,12 @@ pub fn render_meet_with_dialog(app: &AppState, frame: &mut Frame, area: Rect) {
     let height = DIALOG_HEIGHT.min(area.height);
     let x = area.x + (area.width.saturating_sub(width)) / 2;
     let y = area.y + (area.height.saturating_sub(height)) / 2;
-    let rect = Rect { x, y, width, height };
+    let rect = Rect {
+        x,
+        y,
+        width,
+        height,
+    };
 
     frame.render_widget(Clear, rect);
 
@@ -37,7 +42,11 @@ pub fn render_meet_with_dialog(app: &AppState, frame: &mut Frame, area: Rect) {
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Cyan))
         .title(format!(" {} ", step_label))
-        .title_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD));
+        .title_style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        );
 
     let inner = block.inner(rect);
     frame.render_widget(block, rect);
@@ -81,7 +90,10 @@ fn render_people_step(app: &AppState, frame: &mut Frame, area: Rect) {
     } else {
         Paragraph::new(Line::from(vec![
             Span::styled("with: ", Style::default().fg(Color::DarkGray)),
-            Span::styled(mw.selected_names_display(), Style::default().fg(Color::Green)),
+            Span::styled(
+                mw.selected_names_display(),
+                Style::default().fg(Color::Green),
+            ),
         ]))
     };
     frame.render_widget(chips, rows[1]);
@@ -162,7 +174,10 @@ fn render_slots_step(app: &AppState, frame: &mut Frame, area: Rect) {
     frame.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled("with: ", Style::default().fg(Color::DarkGray)),
-            Span::styled(mw.selected_names_display(), Style::default().fg(Color::White)),
+            Span::styled(
+                mw.selected_names_display(),
+                Style::default().fg(Color::White),
+            ),
             Span::raw("  "),
             Span::styled("dur: ", Style::default().fg(Color::DarkGray)),
             Span::styled(mw.duration_display(), Style::default().fg(Color::Cyan)),
@@ -303,14 +318,24 @@ fn render_slot_visualizer(app: &AppState, frame: &mut Frame, area: Rect) {
     let label_line = format!(
         "{:<4}{:>6}{:>8}",
         format!("{}a", range_start),
-        if mid_hour < 12 { format!("{}a", mid_hour) } else { format!("{}p", mid_hour - 12) },
-        if range_end <= 12 { format!("{}a", range_end) } else { format!("{}p", range_end - 12) },
+        if mid_hour < 12 {
+            format!("{}a", mid_hour)
+        } else {
+            format!("{}p", mid_hour - 12)
+        },
+        if range_end <= 12 {
+            format!("{}a", range_end)
+        } else {
+            format!("{}p", range_end - 12)
+        },
     );
 
     let lines = vec![
         Line::from(Span::styled(
             slot.start.format("%A").to_string(),
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         )),
         Line::from(Span::styled(
             slot.start.format("%B %d, %Y").to_string(),
@@ -318,10 +343,7 @@ fn render_slot_visualizer(app: &AppState, frame: &mut Frame, area: Rect) {
         )),
         Line::from(vec![
             Span::styled("│", Style::default().fg(Color::DarkGray)),
-            Span::styled(
-                bar,
-                Style::default().fg(Color::Cyan),
-            ),
+            Span::styled(bar, Style::default().fg(Color::Cyan)),
             Span::styled("│", Style::default().fg(Color::DarkGray)),
         ]),
         Line::from(Span::styled(
@@ -335,7 +357,9 @@ fn render_slot_visualizer(app: &AppState, frame: &mut Frame, area: Rect) {
                 slot.start.format("%H:%M"),
                 slot.end.format("%H:%M")
             ),
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         )),
         Line::from(Span::styled(
             format!("({} min)", slot.duration_minutes),

@@ -118,7 +118,10 @@ impl MeetWithState {
     }
 
     pub fn selected_emails(&self) -> Vec<String> {
-        self.selected_people.iter().map(|p| p.email.clone()).collect()
+        self.selected_people
+            .iter()
+            .map(|p| p.email.clone())
+            .collect()
     }
 
     pub fn selected_names_display(&self) -> String {

@@ -2,7 +2,9 @@ use anyhow::{Context, Result};
 use reqwest::{header, Client, Method, StatusCode};
 
 use crate::api::gcal::CalendarListEntry;
-use crate::api::ical::{extract_uid, extract_uid_from_composite, generate_icalendar, make_composite_id, parse_icalendar};
+use crate::api::ical::{
+    extract_uid, extract_uid_from_composite, generate_icalendar, make_composite_id, parse_icalendar,
+};
 use crate::config::schema::CalDAVAccount;
 use crate::domain::event::CalEvent;
 
@@ -111,9 +113,7 @@ impl CalDavClient {
   </D:prop>
 </D:propfind>"#;
 
-        let resp = self
-            .propfind(&self.base_url, body, "0")
-            .await?;
+        let resp = self.propfind(&self.base_url, body, "0").await?;
 
         // Try /.well-known/caldav if the server didn't return a principal
         let principal = extract_href_from_propfind(&resp, "current-user-principal")
@@ -286,7 +286,10 @@ impl CalDavClient {
             req = req.header("If-Match", e);
         }
 
-        let resp = req.send().await.context("CalDAV PUT (update) request failed")?;
+        let resp = req
+            .send()
+            .await
+            .context("CalDAV PUT (update) request failed")?;
         if !resp.status().is_success() && resp.status() != StatusCode::NO_CONTENT {
             let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
@@ -344,7 +347,9 @@ impl CalDavClient {
 
         let events: Vec<CalEvent> = objects
             .iter()
-            .flat_map(|obj| parse_icalendar(&obj.ical_data, Some(account_email), Some(calendar_url)))
+            .flat_map(|obj| {
+                parse_icalendar(&obj.ical_data, Some(account_email), Some(calendar_url))
+            })
             .collect();
 
         Ok(IncrementalSyncResult {
@@ -417,7 +422,9 @@ impl CalDavClient {
             let text = resp.text().await.unwrap_or_default();
             anyhow::bail!("PROPFIND {} returned {}: {}", url, status, text);
         }
-        resp.text().await.context("Failed to read PROPFIND response")
+        resp.text()
+            .await
+            .context("Failed to read PROPFIND response")
     }
 
     async fn report(&self, url: &str, body: &str) -> Result<String> {
@@ -446,11 +453,7 @@ impl CalDavClient {
         }
         // Parse base to get origin
         if let Ok(base) = url::Url::parse(&self.base_url) {
-            let origin = format!(
-                "{}://{}",
-                base.scheme(),
-                base.host_str().unwrap_or("")
-            );
+            let origin = format!("{}://{}", base.scheme(), base.host_str().unwrap_or(""));
             let port = base.port().map(|p| format!(":{}", p)).unwrap_or_default();
             return format!("{}{}{}", origin, port, href);
         }
@@ -503,7 +506,13 @@ pub async fn sync_caldav_calendar(
     let password = resolve_caldav_password(account).await?;
     let client = CalDavClient::new(&account.server_url, &account.username, &password);
     client
-        .sync_calendar(calendar_url, &account.email, time_min, time_max, stored_ctag)
+        .sync_calendar(
+            calendar_url,
+            &account.email,
+            time_min,
+            time_max,
+            stored_ctag,
+        )
         .await
 }
 
@@ -612,7 +621,10 @@ fn parse_calendar_list(xml: &str, home_url: &str) -> Vec<CalDavCalendar> {
 
     let mut calendars = Vec::new();
 
-    for response in doc.descendants().filter(|n| n.tag_name().name().to_lowercase() == "response") {
+    for response in doc
+        .descendants()
+        .filter(|n| n.tag_name().name().to_lowercase() == "response")
+    {
         // Check that this is a calendar collection (resourcetype contains calendar)
         let is_calendar = response
             .descendants()
@@ -649,7 +661,11 @@ fn parse_calendar_list(xml: &str, home_url: &str) -> Vec<CalDavCalendar> {
             .and_then(|n| n.text())
             .map(|s| s.trim().to_string())
             .unwrap_or_else(|| {
-                href.trim_end_matches('/').rsplit('/').next().unwrap_or("Calendar").to_string()
+                href.trim_end_matches('/')
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or("Calendar")
+                    .to_string()
             });
 
         let ctag = response
@@ -664,7 +680,11 @@ fn parse_calendar_list(xml: &str, home_url: &str) -> Vec<CalDavCalendar> {
             .and_then(|n| n.text())
             .map(|s| {
                 let s = s.trim();
-                if s.starts_with('#') { s[..7.min(s.len())].to_string() } else { s.to_string() }
+                if s.starts_with('#') {
+                    s[..7.min(s.len())].to_string()
+                } else {
+                    s.to_string()
+                }
             });
 
         let supported_components: Vec<String> = response
@@ -685,7 +705,11 @@ fn parse_calendar_list(xml: &str, home_url: &str) -> Vec<CalDavCalendar> {
     calendars
 }
 
-fn parse_calendar_objects(xml: &str, calendar_url: &str, client: &CalDavClient) -> Vec<CalDavObject> {
+fn parse_calendar_objects(
+    xml: &str,
+    calendar_url: &str,
+    client: &CalDavClient,
+) -> Vec<CalDavObject> {
     let doc = match roxmltree::Document::parse(xml) {
         Ok(d) => d,
         Err(_) => return vec![],
@@ -693,7 +717,10 @@ fn parse_calendar_objects(xml: &str, calendar_url: &str, client: &CalDavClient) 
 
     let mut objects = Vec::new();
 
-    for response in doc.descendants().filter(|n| n.tag_name().name().to_lowercase() == "response") {
+    for response in doc
+        .descendants()
+        .filter(|n| n.tag_name().name().to_lowercase() == "response")
+    {
         let href = match response
             .children()
             .find(|n| n.tag_name().name().to_lowercase() == "href")
@@ -727,7 +754,11 @@ fn parse_calendar_objects(xml: &str, calendar_url: &str, client: &CalDavClient) 
         }
 
         let url = client.resolve_url(&href);
-        objects.push(CalDavObject { url, etag, ical_data });
+        objects.push(CalDavObject {
+            url,
+            etag,
+            ical_data,
+        });
     }
 
     objects
@@ -735,8 +766,13 @@ fn parse_calendar_objects(xml: &str, calendar_url: &str, client: &CalDavClient) 
 
 fn iso_to_ical_time(iso: &str) -> String {
     // "2024-01-15T00:00:00Z" → "20240115T000000Z"
-    iso.replace('-', "").replace(':', "").replace('.', "")
-        .split('+').next().unwrap_or(iso).to_string()
+    iso.replace('-', "")
+        .replace(':', "")
+        .replace('.', "")
+        .split('+')
+        .next()
+        .unwrap_or(iso)
+        .to_string()
         .replace("000Z", "Z")
         .replace(' ', "T")
 }

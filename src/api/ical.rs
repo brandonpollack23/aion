@@ -58,7 +58,11 @@ fn parse_property(line: &str) -> ICalProp {
             params.insert(k, v);
         }
     }
-    ICalProp { name, params, value: value.to_string() }
+    ICalProp {
+        name,
+        params,
+        value: value.to_string(),
+    }
 }
 
 fn unescape_text(s: &str) -> String {
@@ -101,11 +105,19 @@ fn ical_date_to_time_object(value: &str, tzid: Option<&str>) -> TimeObject {
             tzid.map(|s| s.to_string())
         };
         let dt_full = if is_utc { format!("{}Z", dt) } else { dt };
-        return TimeObject { date: None, date_time: Some(dt_full), time_zone: tz };
+        return TimeObject {
+            date: None,
+            date_time: Some(dt_full),
+            time_zone: tz,
+        };
     }
 
     // Fallback
-    TimeObject { date: Some(value.to_string()), date_time: None, time_zone: None }
+    TimeObject {
+        date: Some(value.to_string()),
+        date_time: None,
+        time_zone: None,
+    }
 }
 
 fn ical_timestamp_to_iso(value: &str) -> String {
@@ -118,7 +130,11 @@ fn parse_duration_ms(value: &str) -> i64 {
     // Weeks: PnW
     if let Some(cap) = s.strip_prefix('P').and_then(|s| {
         let w = s.trim_end_matches('W').parse::<i64>().ok();
-        if s.ends_with('W') { w } else { None }
+        if s.ends_with('W') {
+            w
+        } else {
+            None
+        }
     }) {
         return cap * 7 * 24 * 3600 * 1000;
     }
@@ -147,7 +163,9 @@ fn parse_duration_ms(value: &str) -> i64 {
 
 fn parse_component(s: &str, unit: char) -> Option<i64> {
     let idx = s.find(unit)?;
-    let start = s[..idx].rfind(|c: char| !c.is_ascii_digit()).map_or(0, |i| i + 1);
+    let start = s[..idx]
+        .rfind(|c: char| !c.is_ascii_digit())
+        .map_or(0, |i| i + 1);
     s[start..idx].parse().ok()
 }
 
@@ -237,14 +255,20 @@ fn parse_valarm_reminders(alarm_blocks: &[Vec<String>]) -> Option<Reminders> {
             if minutes == 0 {
                 return None;
             }
-            Some(Reminder { method: ReminderMethod::Popup, minutes })
+            Some(Reminder {
+                method: ReminderMethod::Popup,
+                minutes,
+            })
         })
         .collect();
 
     if reminders.is_empty() {
         None
     } else {
-        Some(Reminders { use_default: Some(false), overrides: Some(reminders) })
+        Some(Reminders {
+            use_default: Some(false),
+            overrides: Some(reminders),
+        })
     }
 }
 
@@ -273,7 +297,10 @@ fn parse_vevent(
     let composite_id = make_composite_id(account_email, calendar_id, &uid);
 
     let dtstart = props.get("DTSTART")?.first()?;
-    let start = ical_date_to_time_object(&dtstart.value, dtstart.params.get("TZID").map(|s| s.as_str()));
+    let start = ical_date_to_time_object(
+        &dtstart.value,
+        dtstart.params.get("TZID").map(|s| s.as_str()),
+    );
 
     let end = if let Some(dtend) = props.get("DTEND").and_then(|v| v.first()) {
         ical_date_to_time_object(&dtend.value, dtend.params.get("TZID").map(|s| s.as_str()))
@@ -288,9 +315,15 @@ fn parse_vevent(
         .map(|v| {
             v.iter()
                 .map(|a| Attendee {
-                    email: a.value.trim_start_matches("mailto:").trim_start_matches("MAILTO:").to_string(),
+                    email: a
+                        .value
+                        .trim_start_matches("mailto:")
+                        .trim_start_matches("MAILTO:")
+                        .to_string(),
                     display_name: a.params.get("CN").cloned(),
-                    response_status: partstat_to_response_status(a.params.get("PARTSTAT").map(|s| s.as_str())),
+                    response_status: partstat_to_response_status(
+                        a.params.get("PARTSTAT").map(|s| s.as_str()),
+                    ),
                     organizer: if a.params.get("ROLE").map(|s| s.as_str()) == Some("CHAIR") {
                         Some(true)
                     } else {
@@ -302,11 +335,18 @@ fn parse_vevent(
         })
         .unwrap_or_default();
 
-    let organizer = props.get("ORGANIZER").and_then(|v| v.first()).map(|o| Organizer {
-        email: o.value.trim_start_matches("mailto:").trim_start_matches("MAILTO:").to_string(),
-        display_name: o.params.get("CN").cloned(),
-        is_self: None,
-    });
+    let organizer = props
+        .get("ORGANIZER")
+        .and_then(|v| v.first())
+        .map(|o| Organizer {
+            email: o
+                .value
+                .trim_start_matches("mailto:")
+                .trim_start_matches("MAILTO:")
+                .to_string(),
+            display_name: o.params.get("CN").cloned(),
+            is_self: None,
+        });
 
     let recurrence: Vec<String> = props
         .get("RRULE")
@@ -314,7 +354,10 @@ fn parse_vevent(
         .unwrap_or_default();
 
     let status = ical_status_to_event_status(
-        props.get("STATUS").and_then(|v| v.first()).map(|p| p.value.as_str()),
+        props
+            .get("STATUS")
+            .and_then(|v| v.first())
+            .map(|p| p.value.as_str()),
     );
 
     let created = props
@@ -348,9 +391,17 @@ fn parse_vevent(
         event_type: Some(EventType::Default),
         start,
         end,
-        attendees: if attendees.is_empty() { None } else { Some(attendees) },
+        attendees: if attendees.is_empty() {
+            None
+        } else {
+            Some(attendees)
+        },
         organizer,
-        recurrence: if recurrence.is_empty() { None } else { Some(recurrence) },
+        recurrence: if recurrence.is_empty() {
+            None
+        } else {
+            Some(recurrence)
+        },
         recurring_event_id: props
             .get("RECURRENCE-ID")
             .and_then(|v| v.first())
@@ -393,7 +444,11 @@ fn ical_status_to_event_status(s: Option<&str>) -> EventStatus {
 
 // ── Public composite ID helper ─────────────────────────────────────────────────
 
-pub fn make_composite_id(account_email: Option<&str>, calendar_id: Option<&str>, uid: &str) -> String {
+pub fn make_composite_id(
+    account_email: Option<&str>,
+    calendar_id: Option<&str>,
+    uid: &str,
+) -> String {
     format!(
         "{}:{}:{}",
         account_email.unwrap_or(""),
@@ -412,7 +467,11 @@ pub fn extract_uid_from_composite(
         return rest.to_string();
     }
     // Fallback: last segment after last colon
-    composite_id.rsplitn(2, ':').next().unwrap_or(composite_id).to_string()
+    composite_id
+        .rsplitn(2, ':')
+        .next()
+        .unwrap_or(composite_id)
+        .to_string()
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────────

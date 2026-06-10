@@ -52,7 +52,10 @@ pub fn extract_contacts_from_events(events: &HashMap<String, CalEvent>) -> Vec<C
     }
 
     seen.into_iter()
-        .map(|(email, display_name)| Contact { email, display_name })
+        .map(|(email, display_name)| Contact {
+            email,
+            display_name,
+        })
         .collect()
 }
 

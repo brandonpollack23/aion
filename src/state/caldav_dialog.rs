@@ -108,11 +108,19 @@ impl CalDavDialogState {
             username: self.fields[CD_USERNAME].trim().to_string(),
             password: {
                 let p = self.fields[CD_PASSWORD].trim().to_string();
-                if p.is_empty() { None } else { Some(p) }
+                if p.is_empty() {
+                    None
+                } else {
+                    Some(p)
+                }
             },
             password_command: {
                 let p = self.fields[CD_PASSWORD_CMD].trim().to_string();
-                if p.is_empty() { None } else { Some(p) }
+                if p.is_empty() {
+                    None
+                } else {
+                    Some(p)
+                }
             },
         }
     }

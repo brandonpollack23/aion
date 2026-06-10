@@ -38,9 +38,19 @@ pub fn render_login_prompt(app: &AppState, frame: &mut Frame, area: Rect) {
         )),
         Line::raw(""),
         Line::from(vec![
-            Span::styled("y", Style::default().fg(app.theme.accent_success).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "y",
+                Style::default()
+                    .fg(app.theme.accent_success)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled(":login  ", Style::default().fg(app.theme.text_dim)),
-            Span::styled("n", Style::default().fg(app.theme.accent_error).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "n",
+                Style::default()
+                    .fg(app.theme.accent_error)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled("/", Style::default().fg(app.theme.text_dim)),
             Span::styled("Esc", Style::default().fg(app.theme.accent_primary)),
             Span::styled(":dismiss", Style::default().fg(app.theme.text_dim)),

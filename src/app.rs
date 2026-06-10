@@ -10,7 +10,10 @@ use tokio::sync::mpsc;
 
 use crate::auth::tokens::AccountInfo;
 use crate::config::loader::load_config;
-use crate::db::{connection::open_connection, events_repo::{delete_event as db_delete_event, get_all_events, upsert_event}};
+use crate::db::{
+    connection::open_connection,
+    events_repo::{delete_event as db_delete_event, get_all_events, upsert_event},
+};
 use crate::keybinds::registry::handle_key;
 use crate::state::app_state::AppState;
 use crate::state::message::Message;
@@ -122,9 +125,10 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Resul
             start_background_sync(tx.clone(), id, secret);
         } else {
             // Credentials configured but no Google account logged in — prompt user
-            let has_google = app.accounts.iter().any(|a| {
-                a.account_type == crate::auth::tokens::AccountType::Google
-            });
+            let has_google = app
+                .accounts
+                .iter()
+                .any(|a| a.account_type == crate::auth::tokens::AccountType::Google);
             if !has_google {
                 app.push_overlay(Overlay {
                     kind: OverlayKind::LoginPrompt,
@@ -215,10 +219,7 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Resul
             Some(AppEvent::AuthSuccess(account)) => {
                 app.is_auth_loading = false;
                 app.reload_accounts();
-                app.show_message(Message::success(format!(
-                    "Logged in as {}",
-                    account.email
-                )));
+                app.show_message(Message::success(format!("Logged in as {}", account.email)));
                 // Trigger immediate sync for the new account
                 if let (Some(id), Some(secret)) = (client_id.clone(), client_secret.clone()) {
                     app.is_syncing = true;

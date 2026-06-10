@@ -123,7 +123,11 @@ impl CalEvent {
 
     pub fn display_title(&self) -> &str {
         let t = self.summary.trim();
-        if t.is_empty() { "(No title)" } else { t }
+        if t.is_empty() {
+            "(No title)"
+        } else {
+            t
+        }
     }
 
     pub fn calendar_key(&self) -> String {
@@ -143,9 +147,10 @@ impl CalEvent {
     }
 
     pub fn has_other_attendees(&self) -> bool {
-        self.attendees
-            .as_ref()
-            .map_or(false, |a| a.iter().any(|x| x.is_self != Some(true) && x.organizer != Some(true)))
+        self.attendees.as_ref().map_or(false, |a| {
+            a.iter()
+                .any(|x| x.is_self != Some(true) && x.organizer != Some(true))
+        })
     }
 
     pub fn parse_recurrence_rule(&self) -> Option<String> {
@@ -190,8 +195,13 @@ impl CalEvent {
 
         if let (Some(days), "weekly") = (byday, freq.as_str()) {
             let day_map = [
-                ("MO", "Mon"), ("TU", "Tue"), ("WE", "Wed"),
-                ("TH", "Thu"), ("FR", "Fri"), ("SA", "Sat"), ("SU", "Sun"),
+                ("MO", "Mon"),
+                ("TU", "Tue"),
+                ("WE", "Wed"),
+                ("TH", "Thu"),
+                ("FR", "Fri"),
+                ("SA", "Sat"),
+                ("SU", "Sun"),
             ];
             let mapped: Vec<&str> = days
                 .split(',')
@@ -233,12 +243,26 @@ impl CalEvent {
                 let m = &until_str[4..6];
                 let d = &until_str[6..8];
                 let month_name = match m {
-                    "01" => "Jan", "02" => "Feb", "03" => "Mar", "04" => "Apr",
-                    "05" => "May", "06" => "Jun", "07" => "Jul", "08" => "Aug",
-                    "09" => "Sep", "10" => "Oct", "11" => "Nov", "12" => "Dec",
+                    "01" => "Jan",
+                    "02" => "Feb",
+                    "03" => "Mar",
+                    "04" => "Apr",
+                    "05" => "May",
+                    "06" => "Jun",
+                    "07" => "Jul",
+                    "08" => "Aug",
+                    "09" => "Sep",
+                    "10" => "Oct",
+                    "11" => "Nov",
+                    "12" => "Dec",
                     _ => m,
                 };
-                result.push_str(&format!(", until {} {} {}", month_name, d.trim_start_matches('0'), y));
+                result.push_str(&format!(
+                    ", until {} {} {}",
+                    month_name,
+                    d.trim_start_matches('0'),
+                    y
+                ));
             }
         }
 
@@ -246,7 +270,10 @@ impl CalEvent {
     }
 }
 
-pub fn get_attendance_indicator(status: Option<&ResponseStatus>, has_attendees: bool) -> &'static str {
+pub fn get_attendance_indicator(
+    status: Option<&ResponseStatus>,
+    has_attendees: bool,
+) -> &'static str {
     match status {
         Some(ResponseStatus::Accepted) => "✓ ",
         Some(ResponseStatus::Declined) => "✗ ",

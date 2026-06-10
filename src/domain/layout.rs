@@ -3,8 +3,8 @@ use std::collections::HashMap;
 
 use crate::domain::event::CalEvent;
 use crate::domain::time::{
-    event_falls_on_day, get_duration_minutes, get_event_end, get_event_start,
-    get_hour_bucket, get_minutes_from_midnight,
+    event_falls_on_day, get_duration_minutes, get_event_end, get_event_start, get_hour_bucket,
+    get_minutes_from_midnight,
 };
 
 pub const SLOTS_PER_HOUR: i64 = 4;
@@ -53,9 +53,10 @@ impl DayLayout {
         if self.timed_events.is_empty() {
             return self.all_day_events.first();
         }
-        let nearest = self.timed_events.iter().min_by_key(|l| {
-            (l.start_minutes - minute_of_day).unsigned_abs()
-        })?;
+        let nearest = self
+            .timed_events
+            .iter()
+            .min_by_key(|l| (l.start_minutes - minute_of_day).unsigned_abs())?;
         Some(&nearest.event)
     }
 
@@ -82,7 +83,11 @@ pub fn layout_day(events: &[CalEvent], day: NaiveDate, tz: &str) -> DayLayout {
         .collect();
 
     let mut all_day_events = Vec::new();
-    let mut timed_raw: Vec<(&CalEvent, chrono::DateTime<chrono_tz::Tz>, chrono::DateTime<chrono_tz::Tz>)> = Vec::new();
+    let mut timed_raw: Vec<(
+        &CalEvent,
+        chrono::DateTime<chrono_tz::Tz>,
+        chrono::DateTime<chrono_tz::Tz>,
+    )> = Vec::new();
 
     for event in day_events {
         if event.is_all_day() {
@@ -113,31 +118,45 @@ pub fn layout_day(events: &[CalEvent], day: NaiveDate, tz: &str) -> DayLayout {
     let day_start = tz_parsed
         .from_local_datetime(&day.and_hms_opt(0, 0, 0).unwrap())
         .single()
-        .unwrap_or_else(|| {
-            tz_parsed.from_utc_datetime(&day.and_hms_opt(0, 0, 0).unwrap())
-        });
+        .unwrap_or_else(|| tz_parsed.from_utc_datetime(&day.and_hms_opt(0, 0, 0).unwrap()));
     let day_end = day_start + Duration::days(1);
     let day_end_minutes = 24 * 60;
 
     let mut timed_layouts: Vec<TimedEventLayout> = Vec::new();
 
     for (event, start, end) in &timed_raw {
-        let event_day_start = if *start < day_start { day_start } else { *start };
+        let event_day_start = if *start < day_start {
+            day_start
+        } else {
+            *start
+        };
         let event_day_end = if *end > day_end { day_end } else { *end };
 
         let start_minutes = get_minutes_from_midnight(&event_day_start).max(0);
         let raw_end_minutes = get_minutes_from_midnight(&event_day_end);
         let end_minutes = raw_end_minutes.min(day_end_minutes);
         let hour_bucket_start = get_hour_bucket(&event_day_start);
-        let hour_bucket_end = if end_minutes == 0 { 23 } else { ((end_minutes - 1) / 60).min(23) };
+        let hour_bucket_end = if end_minutes == 0 {
+            23
+        } else {
+            ((end_minutes - 1) / 60).min(23)
+        };
         let offset_in_hour = start_minutes % 60;
 
         timed_layouts.push(TimedEventLayout {
             event: (*event).clone(),
             start_minutes,
-            end_minutes: if end_minutes == 0 { day_end_minutes } else { end_minutes },
+            end_minutes: if end_minutes == 0 {
+                day_end_minutes
+            } else {
+                end_minutes
+            },
             hour_bucket_start,
-            hour_bucket_end: if raw_end_minutes == 0 { 23 } else { hour_bucket_end },
+            hour_bucket_end: if raw_end_minutes == 0 {
+                23
+            } else {
+                hour_bucket_end
+            },
             duration_minutes: get_duration_minutes(&event_day_start, &event_day_end),
             offset_in_hour,
             column: 0,
@@ -213,7 +232,9 @@ fn assign_columns(layouts: &mut Vec<TimedEventLayout>) {
             if start_cmp != std::cmp::Ordering::Equal {
                 return start_cmp;
             }
-            layouts[b].duration_minutes.cmp(&layouts[a].duration_minutes)
+            layouts[b]
+                .duration_minutes
+                .cmp(&layouts[a].duration_minutes)
         });
 
         let mut column_ends: Vec<i64> = Vec::new();

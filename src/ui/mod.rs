@@ -11,3 +11,4 @@ pub mod search_view;
 pub mod status_bar;
 pub mod theme;
 pub mod timeline_column;
+pub mod timezone_sidebar;

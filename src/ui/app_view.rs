@@ -3,14 +3,14 @@ use ratatui::{
     Frame,
 };
 
+use crate::config::schema::ViewMode;
 use crate::state::app_state::AppState;
 use crate::state::focus::FocusContext;
 use crate::state::overlay::OverlayKind;
 use crate::ui::command_bar::{render_command_completions, render_command_input};
-use crate::config::schema::ViewMode;
 use crate::ui::day_view::render_day_view;
-use crate::ui::month_view::render_month_view;
 use crate::ui::header::render_header;
+use crate::ui::month_view::render_month_view;
 use crate::ui::overlays::accounts_dialog::render_accounts_dialog;
 use crate::ui::overlays::caldav_login_dialog::render_caldav_login_dialog;
 use crate::ui::overlays::confirm_modal::render_confirm_modal;
@@ -18,11 +18,11 @@ use crate::ui::overlays::details_panel::render_details_panel;
 use crate::ui::overlays::event_dialog::render_event_dialog;
 use crate::ui::overlays::goto_dialog::render_goto_dialog;
 use crate::ui::overlays::help_dialog::render_help_dialog;
+use crate::ui::overlays::login_prompt::render_login_prompt;
 use crate::ui::overlays::meet_with_dialog::render_meet_with_dialog;
 use crate::ui::overlays::messages_dialog::render_messages_dialog;
 use crate::ui::overlays::notifications_panel::render_notifications_panel;
 use crate::ui::overlays::propose_time_dialog::render_propose_time_dialog;
-use crate::ui::overlays::login_prompt::render_login_prompt;
 use crate::ui::overlays::splash::render_splash;
 use crate::ui::search_view::render_search_view;
 use crate::ui::status_bar::render_status_bar;

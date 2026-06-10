@@ -28,6 +28,7 @@ pub struct AppTheme {
     pub input_placeholder: Color,
     pub statusbar_bg: Color,
     pub statusbar_text: Color,
+    pub timezone_local_bg: Color,
     // Calendar color palette (for calendar key hashing)
     pub calendar_palette: Vec<Color>,
 }
@@ -42,7 +43,14 @@ impl AppTheme {
             .collect();
         palette_keys.sort();
         let calendar_palette: Vec<Color> = if palette_keys.is_empty() {
-            vec![Color::Blue, Color::Green, Color::Magenta, Color::Red, Color::Yellow, Color::Cyan]
+            vec![
+                Color::Blue,
+                Color::Green,
+                Color::Magenta,
+                Color::Red,
+                Color::Yellow,
+                Color::Cyan,
+            ]
         } else {
             palette_keys
                 .iter()
@@ -77,6 +85,7 @@ impl AppTheme {
             input_placeholder: parse_color(&cfg.input.placeholder),
             statusbar_bg: parse_color(&cfg.status_bar.background),
             statusbar_text: parse_color(&cfg.status_bar.text),
+            timezone_local_bg: parse_color(&cfg.timezone_local_bg),
             calendar_palette,
         }
     }

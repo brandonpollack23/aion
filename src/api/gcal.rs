@@ -102,7 +102,7 @@ struct GRawEvent {
 
 #[derive(Deserialize)]
 struct EventsListResponse {
-    items: Option<Vec<GRawEvent>>,
+    items: Option<Vec<serde_json::Value>>,
     #[serde(rename = "nextPageToken")]
     next_page_token: Option<String>,
     #[serde(rename = "nextSyncToken")]
@@ -164,26 +164,44 @@ fn raw_to_cal_event(raw: &GRawEvent, account_email: &str, calendar_id: &str) -> 
         _ => EventType::Default,
     });
 
-    let start = raw.start.as_ref().map(|t| TimeObject {
-        date: t.date.clone(),
-        date_time: t.date_time.clone(),
-        time_zone: t.time_zone.clone(),
-    }).unwrap_or(TimeObject { date: None, date_time: None, time_zone: None });
+    let start = raw
+        .start
+        .as_ref()
+        .map(|t| TimeObject {
+            date: t.date.clone(),
+            date_time: t.date_time.clone(),
+            time_zone: t.time_zone.clone(),
+        })
+        .unwrap_or(TimeObject {
+            date: None,
+            date_time: None,
+            time_zone: None,
+        });
 
-    let end = raw.end.as_ref().map(|t| TimeObject {
-        date: t.date.clone(),
-        date_time: t.date_time.clone(),
-        time_zone: t.time_zone.clone(),
-    }).unwrap_or(TimeObject { date: None, date_time: None, time_zone: None });
+    let end = raw
+        .end
+        .as_ref()
+        .map(|t| TimeObject {
+            date: t.date.clone(),
+            date_time: t.date_time.clone(),
+            time_zone: t.time_zone.clone(),
+        })
+        .unwrap_or(TimeObject {
+            date: None,
+            date_time: None,
+            time_zone: None,
+        });
 
     let attendees = raw.attendees.as_ref().map(|list| {
-        list.iter().map(|a| Attendee {
-            email: a.email.clone(),
-            display_name: a.display_name.clone(),
-            response_status: a.response_status.as_deref().and_then(parse_response_status),
-            organizer: a.organizer,
-            is_self: a.is_self,
-        }).collect()
+        list.iter()
+            .map(|a| Attendee {
+                email: a.email.clone(),
+                display_name: a.display_name.clone(),
+                response_status: a.response_status.as_deref().and_then(parse_response_status),
+                organizer: a.organizer,
+                is_self: a.is_self,
+            })
+            .collect()
     });
 
     let organizer = raw.organizer.as_ref().map(|o| Organizer {
@@ -197,13 +215,15 @@ fn raw_to_cal_event(raw: &GRawEvent, account_email: &str, calendar_id: &str) -> 
         Reminders {
             use_default: r.use_default,
             overrides: r.overrides.as_ref().map(|list| {
-                list.iter().map(|rm| Reminder {
-                    method: match rm.method.as_str() {
-                        "email" => ReminderMethod::Email,
-                        _ => ReminderMethod::Popup,
-                    },
-                    minutes: rm.minutes,
-                }).collect()
+                list.iter()
+                    .map(|rm| Reminder {
+                        method: match rm.method.as_str() {
+                            "email" => ReminderMethod::Email,
+                            _ => ReminderMethod::Popup,
+                        },
+                        minutes: rm.minutes,
+                    })
+                    .collect()
             }),
         }
     });
@@ -318,12 +338,7 @@ impl GcalClient {
     async fn delete(&self, account_email: &str, path: &str) -> Result<()> {
         let token = self.access_token(account_email).await?;
         let url = format!("{}{}", GCAL_BASE, path);
-        let res = self
-            .http
-            .delete(&url)
-            .bearer_auth(&token)
-            .send()
-            .await?;
+        let res = self.http.delete(&url).bearer_auth(&token).send().await?;
         if !res.status().is_success() && res.status().as_u16() != 204 {
             let status = res.status();
             let text = res.text().await.unwrap_or_default();
@@ -335,9 +350,7 @@ impl GcalClient {
     // ── Public API ─────────────────────────────────────────────────────────────
 
     pub async fn get_calendar_list(&self, account_email: &str) -> Result<Vec<CalendarListEntry>> {
-        let resp: CalendarListResponse = self
-            .get(account_email, "/users/me/calendarList")
-            .await?;
+        let resp: CalendarListResponse = self.get(account_email, "/users/me/calendarList").await?;
         let mut items = resp.items.unwrap_or_default();
         for item in &mut items {
             item.account_email = account_email.to_string();
@@ -368,11 +381,23 @@ impl GcalClient {
 
             let resp: EventsListResponse = self.get(account_email, &path).await?;
 
-            for raw in resp.items.unwrap_or_default() {
-                if raw.status.as_deref() == Some("cancelled") {
-                    continue;
+            for item in resp.items.unwrap_or_default() {
+                match serde_json::from_value::<GRawEvent>(item) {
+                    Ok(raw) => {
+                        if raw.status.as_deref() == Some("cancelled") {
+                            continue;
+                        }
+                        all_events.push(raw_to_cal_event(&raw, account_email, calendar_id));
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "Skipped event in {}/{} (parse error): {}",
+                            account_email,
+                            calendar_id,
+                            e
+                        );
+                    }
                 }
-                all_events.push(raw_to_cal_event(&raw, account_email, calendar_id));
             }
 
             page_token = resp.next_page_token;
@@ -423,18 +448,34 @@ impl GcalClient {
             if !res.status().is_success() {
                 let status = res.status();
                 let text = res.text().await.unwrap_or_default();
-                anyhow::bail!("Incremental sync {} {}: {}", status.as_u16(), calendar_id, text);
+                anyhow::bail!(
+                    "Incremental sync {} {}: {}",
+                    status.as_u16(),
+                    calendar_id,
+                    text
+                );
             }
 
             let resp: EventsListResponse = res.json().await?;
 
-            for raw in resp.items.unwrap_or_default() {
-                let composite_id =
-                    make_composite_id(account_email, calendar_id, &raw.id);
-                if raw.status.as_deref() == Some("cancelled") {
-                    deleted.push(composite_id);
-                } else {
-                    changed.push(raw_to_cal_event(&raw, account_email, calendar_id));
+            for item in resp.items.unwrap_or_default() {
+                match serde_json::from_value::<GRawEvent>(item) {
+                    Ok(raw) => {
+                        let composite_id = make_composite_id(account_email, calendar_id, &raw.id);
+                        if raw.status.as_deref() == Some("cancelled") {
+                            deleted.push(composite_id);
+                        } else {
+                            changed.push(raw_to_cal_event(&raw, account_email, calendar_id));
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "Skipped event in {}/{} (parse error): {}",
+                            account_email,
+                            calendar_id,
+                            e
+                        );
+                    }
                 }
             }
 
@@ -458,7 +499,8 @@ impl GcalClient {
         calendar_id: &str,
         event: &CalEvent,
     ) -> Result<CalEvent> {
-        self.create_event_inner(account_email, calendar_id, event, false).await
+        self.create_event_inner(account_email, calendar_id, event, false)
+            .await
     }
 
     pub async fn create_event_with_meet(
@@ -467,7 +509,8 @@ impl GcalClient {
         calendar_id: &str,
         event: &CalEvent,
     ) -> Result<CalEvent> {
-        self.create_event_inner(account_email, calendar_id, event, true).await
+        self.create_event_inner(account_email, calendar_id, event, true)
+            .await
     }
 
     async fn create_event_inner(

@@ -1,34 +1,96 @@
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
-fn default_text_primary() -> String { "white".to_string() }
-fn default_text_secondary() -> String { "whiteBright".to_string() }
-fn default_text_dim() -> String { "blackBright".to_string() }
-fn default_text_weekend() -> String { "redBright".to_string() }
-fn default_accent_primary() -> String { "cyan".to_string() }
-fn default_accent_success() -> String { "green".to_string() }
-fn default_accent_warning() -> String { "yellow".to_string() }
-fn default_accent_error() -> String { "red".to_string() }
-fn default_event_default() -> String { "cyan".to_string() }
-fn default_event_ooo() -> String { "magenta".to_string() }
-fn default_event_focus() -> String { "blue".to_string() }
-fn default_event_birthday() -> String { "yellow".to_string() }
-fn default_selection_bg() -> String { "blackBright".to_string() }
-fn default_selection_text() -> String { "whiteBright".to_string() }
-fn default_status_accepted() -> String { "green".to_string() }
-fn default_status_declined() -> String { "red".to_string() }
-fn default_status_tentative() -> String { "yellow".to_string() }
-fn default_status_needs_action() -> String { "blackBright".to_string() }
-fn default_modal_bg() -> String { "black".to_string() }
-fn default_modal_border() -> String { "blackBright".to_string() }
-fn default_statusbar_bg() -> String { "black".to_string() }
-fn default_statusbar_text() -> String { "white".to_string() }
-fn default_input_bg() -> String { "black".to_string() }
-fn default_input_text() -> String { "white".to_string() }
-fn default_input_placeholder() -> String { "blackBright".to_string() }
-fn default_view_columns() -> usize { 1 }
-fn default_view_mode() -> ViewMode { ViewMode::Daily }
-fn default_caldav() -> Vec<CalDAVAccount> { vec![] }
+fn default_text_primary() -> String {
+    "white".to_string()
+}
+fn default_text_secondary() -> String {
+    "whiteBright".to_string()
+}
+fn default_text_dim() -> String {
+    "blackBright".to_string()
+}
+fn default_text_weekend() -> String {
+    "redBright".to_string()
+}
+fn default_accent_primary() -> String {
+    "cyan".to_string()
+}
+fn default_accent_success() -> String {
+    "green".to_string()
+}
+fn default_accent_warning() -> String {
+    "yellow".to_string()
+}
+fn default_accent_error() -> String {
+    "red".to_string()
+}
+fn default_event_default() -> String {
+    "cyan".to_string()
+}
+fn default_event_ooo() -> String {
+    "magenta".to_string()
+}
+fn default_event_focus() -> String {
+    "blue".to_string()
+}
+fn default_event_birthday() -> String {
+    "yellow".to_string()
+}
+fn default_selection_bg() -> String {
+    "blackBright".to_string()
+}
+fn default_selection_text() -> String {
+    "whiteBright".to_string()
+}
+fn default_status_accepted() -> String {
+    "green".to_string()
+}
+fn default_status_declined() -> String {
+    "red".to_string()
+}
+fn default_status_tentative() -> String {
+    "yellow".to_string()
+}
+fn default_status_needs_action() -> String {
+    "blackBright".to_string()
+}
+fn default_modal_bg() -> String {
+    "black".to_string()
+}
+fn default_modal_border() -> String {
+    "blackBright".to_string()
+}
+fn default_statusbar_bg() -> String {
+    "black".to_string()
+}
+fn default_statusbar_text() -> String {
+    "white".to_string()
+}
+fn default_timezone_local_bg() -> String {
+    "darkGray".to_string()
+}
+fn default_input_bg() -> String {
+    "black".to_string()
+}
+fn default_input_text() -> String {
+    "white".to_string()
+}
+fn default_input_placeholder() -> String {
+    "blackBright".to_string()
+}
+fn default_view_columns() -> usize {
+    1
+}
+fn default_view_mode() -> ViewMode {
+    ViewMode::Daily
+}
+fn default_additional_timezones() -> Vec<String> {
+    vec![]
+}
+fn default_caldav() -> Vec<CalDAVAccount> {
+    vec![]
+}
 fn default_calendar_colors() -> HashMap<String, String> {
     let mut m = HashMap::new();
     m.insert("1".to_string(), "blue".to_string());
@@ -205,6 +267,8 @@ pub struct Theme {
     pub status_bar: ThemeStatusBar,
     #[serde(rename = "calendarColors", default = "default_calendar_colors")]
     pub calendar_colors: HashMap<String, String>,
+    #[serde(rename = "timezoneLocalBg", default = "default_timezone_local_bg")]
+    pub timezone_local_bg: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -229,11 +293,20 @@ pub struct ViewConfig {
     pub columns: usize,
     #[serde(default = "default_view_mode")]
     pub view_mode: ViewMode,
+    #[serde(
+        rename = "additionalTimezones",
+        default = "default_additional_timezones"
+    )]
+    pub additional_timezones: Vec<String>,
 }
 
 impl Default for ViewConfig {
     fn default() -> Self {
-        Self { columns: 1, view_mode: ViewMode::Daily }
+        Self {
+            columns: 1,
+            view_mode: ViewMode::Daily,
+            additional_timezones: vec![],
+        }
     }
 }
 

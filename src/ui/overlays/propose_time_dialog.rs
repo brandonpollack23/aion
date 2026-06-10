@@ -25,7 +25,12 @@ pub fn render_propose_time_dialog(app: &AppState, frame: &mut Frame, area: Rect)
     let height = 16u16.min(area.height);
     let x = area.x + (area.width.saturating_sub(width)) / 2;
     let y = area.y + (area.height.saturating_sub(height)) / 2;
-    let rect = Rect { x, y, width, height };
+    let rect = Rect {
+        x,
+        y,
+        width,
+        height,
+    };
 
     frame.render_widget(Clear, rect);
 
@@ -33,7 +38,11 @@ pub fn render_propose_time_dialog(app: &AppState, frame: &mut Frame, area: Rect)
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Cyan))
         .title(" Propose New Time ")
-        .title_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD));
+        .title_style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        );
 
     let inner = block.inner(rect);
     frame.render_widget(block, rect);
@@ -75,14 +84,20 @@ pub fn render_propose_time_dialog(app: &AppState, frame: &mut Frame, area: Rect)
     // When field
     let when_active = pt.active_field == PT_FIELD_WHEN;
     let when_style = if when_active {
-        Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(Color::White)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(Color::Gray)
     };
     let when_line = Line::from(vec![
         Span::styled(
             "when:    ",
-            Style::default().fg(if when_active { Color::Cyan } else { Color::DarkGray }),
+            Style::default().fg(if when_active {
+                Color::Cyan
+            } else {
+                Color::DarkGray
+            }),
         ),
         Span::styled(&pt.when_input, when_style),
         if when_active {
@@ -102,7 +117,10 @@ pub fn render_propose_time_dialog(app: &AppState, frame: &mut Frame, area: Rect)
         frame.render_widget(
             Paragraph::new(Line::from(vec![
                 Span::raw("         "),
-                Span::styled(format!("→ {} (Enter)", preview), Style::default().fg(Color::Green)),
+                Span::styled(
+                    format!("→ {} (Enter)", preview),
+                    Style::default().fg(Color::Green),
+                ),
             ])),
             when_rows[1],
         );
@@ -138,7 +156,11 @@ pub fn render_propose_time_dialog(app: &AppState, frame: &mut Frame, area: Rect)
         Paragraph::new(Line::from(vec![
             Span::styled(
                 "message: ",
-                Style::default().fg(if msg_active { Color::Cyan } else { Color::DarkGray }),
+                Style::default().fg(if msg_active {
+                    Color::Cyan
+                } else {
+                    Color::DarkGray
+                }),
             ),
             Span::styled(
                 &pt.message,
@@ -182,12 +204,16 @@ fn render_date_time_row(
     time_active: bool,
 ) {
     let date_style = if date_active {
-        Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(Color::White)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(Color::Gray)
     };
     let time_style = if time_active {
-        Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(Color::White)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(Color::Gray)
     };
@@ -195,8 +221,11 @@ fn render_date_time_row(
     let mut spans = vec![
         Span::styled(
             label,
-            Style::default()
-                .fg(if date_active || time_active { Color::Cyan } else { Color::DarkGray }),
+            Style::default().fg(if date_active || time_active {
+                Color::Cyan
+            } else {
+                Color::DarkGray
+            }),
         ),
         Span::styled(date, date_style),
         if date_active {
