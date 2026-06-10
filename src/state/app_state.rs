@@ -535,6 +535,15 @@ impl AppState {
                     .map_or(false, |s| *s == ResponseStatus::NeedsAction)
             })
             .filter(|e| {
+                e.self_attendee_email()
+                    .map(|email| {
+                        self.accounts
+                            .iter()
+                            .any(|account| account.email.eq_ignore_ascii_case(email))
+                    })
+                    .unwrap_or(false)
+            })
+            .filter(|e| {
                 self.disabled_calendars.is_empty()
                     || !self.disabled_calendars.contains(&e.calendar_key())
             })

@@ -146,6 +146,14 @@ impl CalEvent {
             .and_then(|a| a.response_status.as_ref())
     }
 
+    pub fn self_attendee_email(&self) -> Option<&str> {
+        self.attendees
+            .as_ref()?
+            .iter()
+            .find(|a| a.is_self == Some(true))
+            .map(|a| a.email.as_str())
+    }
+
     pub fn has_other_attendees(&self) -> bool {
         self.attendees.as_ref().map_or(false, |a| {
             a.iter()
