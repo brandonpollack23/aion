@@ -1,4 +1,8 @@
-use chrono::{Datelike, Duration, Local, NaiveDate, NaiveDateTime, Weekday};
+use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, NaiveDateTime, Weekday};
+use std::sync::OnceLock;
+use whichtime::{Component, FastComponents, ReferenceWithTimezone, WhichTime};
+
+static WHICHTIME: OnceLock<WhichTime> = OnceLock::new();
 
 #[derive(Debug, Clone)]
 pub struct ParsedDate {
@@ -109,18 +113,25 @@ fn parse_datetime_fields(date: &str, time: &str) -> Option<NaiveDateTime> {
 }
 
 pub fn parse_natural_date(input: &str) -> Option<ParsedDate> {
-    let today = Local::now().date_naive();
+    parse_natural_date_with_reference(input, Local::now())
+}
+
+fn parse_natural_date_with_reference(
+    input: &str,
+    reference: DateTime<Local>,
+) -> Option<ParsedDate> {
+    let today = reference.date_naive();
     let s = input.trim();
     if s.is_empty() {
         return None;
     }
 
-    if let Some(r) = parse_inline_time_range(s, today) {
+    if let Some(r) = parse_inline_time_range(s, reference) {
         return Some(r);
     }
 
     // Range patterns first: "from X until Y", "between X and Y"
-    if let Some(r) = parse_range(s, today) {
+    if let Some(r) = parse_range(s, reference) {
         return Some(r);
     }
 
@@ -140,28 +151,52 @@ pub fn parse_natural_date(input: &str) -> Option<ParsedDate> {
         });
     }
 
-    let (date, time) = parse_date_time(&base, today)?;
+    if let Some((date, time)) = parse_date_time(&base, reference) {
+        return Some(parsed_with_duration(
+            date, time, None, None, dur_mins, dur_days,
+        ));
+    }
 
+    let parsed = parse_whichtime(&base, reference)?;
+    Some(parsed_with_duration(
+        parsed.date,
+        parsed.time,
+        parsed.end_date,
+        parsed.end_time,
+        dur_mins,
+        dur_days,
+    ))
+}
+
+fn parsed_with_duration(
+    date: NaiveDate,
+    time: Option<(u32, u32)>,
+    parsed_end_date: Option<NaiveDate>,
+    parsed_end_time: Option<(u32, u32)>,
+    dur_mins: Option<i64>,
+    dur_days: Option<i64>,
+) -> ParsedDate {
     let end_time = if let (Some(mins), Some((h, m))) = (dur_mins, time) {
         let total = h as i64 * 60 + m as i64 + mins;
         Some(((total / 60 % 24) as u32, (total % 60) as u32))
     } else {
-        None
+        parsed_end_time
     };
-    let end_date = dur_days.map(|d| date + Duration::days(d));
-    let is_date_range = dur_days.is_some() && time.is_none();
-
-    Some(ParsedDate {
+    let end_date = dur_days
+        .map(|d| date + Duration::days(d))
+        .or(parsed_end_date);
+    let is_date_range = end_date.is_some() && time.is_none();
+    ParsedDate {
         date,
         time,
         end_date,
         end_time,
         is_date_range,
         duration_minutes: dur_mins,
-    })
+    }
 }
 
-fn parse_range(s: &str, today: NaiveDate) -> Option<ParsedDate> {
+fn parse_range(s: &str, reference: DateTime<Local>) -> Option<ParsedDate> {
     let sl = s.to_lowercase();
 
     let (start_str, end_str) = if sl.starts_with("from ") || sl.starts_with("starting ") {
@@ -186,8 +221,8 @@ fn parse_range(s: &str, today: NaiveDate) -> Option<ParsedDate> {
         return None;
     };
 
-    let (start_date, start_time) = parse_date_time(start_str.trim(), today)?;
-    let (end_date, end_time) = parse_date_time(end_str.trim(), today)?;
+    let (start_date, start_time) = parse_date_time_flexible(start_str.trim(), reference)?;
+    let (end_date, end_time) = parse_date_time_flexible(end_str.trim(), reference)?;
 
     Some(ParsedDate {
         date: start_date,
@@ -199,10 +234,10 @@ fn parse_range(s: &str, today: NaiveDate) -> Option<ParsedDate> {
     })
 }
 
-fn parse_inline_time_range(s: &str, today: NaiveDate) -> Option<ParsedDate> {
+fn parse_inline_time_range(s: &str, reference: DateTime<Local>) -> Option<ParsedDate> {
     let normalized = s.replace(['–', '—'], "-");
     let (start_str, end_str) = normalized.split_once('-')?;
-    let (date, start_time) = parse_date_time(start_str.trim(), today)?;
+    let (date, start_time) = parse_date_time(start_str.trim(), reference)?;
     let start_time = start_time?;
     let end_time = parse_time_with_meridiem_hint(end_str.trim(), start_time)?;
 
@@ -271,9 +306,24 @@ fn parse_shorthand(s: &str, today: NaiveDate) -> Option<NaiveDate> {
     }
 }
 
-fn parse_date_time(s: &str, today: NaiveDate) -> Option<(NaiveDate, Option<(u32, u32)>)> {
+fn parse_date_time_flexible(
+    s: &str,
+    reference: DateTime<Local>,
+) -> Option<(NaiveDate, Option<(u32, u32)>)> {
+    parse_date_time(s, reference)
+        .or_else(|| parse_whichtime(s, reference).map(|parsed| (parsed.date, parsed.time)))
+}
+
+fn parse_date_time(s: &str, reference: DateTime<Local>) -> Option<(NaiveDate, Option<(u32, u32)>)> {
+    let today = reference.date_naive();
     let sl = s.to_lowercase();
     let sl = sl.trim();
+
+    for prefix in &["on ", "at "] {
+        if sl.starts_with(prefix) {
+            return parse_date_time(s[prefix.len()..].trim(), reference);
+        }
+    }
 
     if let Some(parsed) = parse_trailing_date_time(s.trim(), today) {
         return Some(parsed);
@@ -398,6 +448,55 @@ fn parse_date_time(s: &str, today: NaiveDate) -> Option<(NaiveDate, Option<(u32,
     }
 
     None
+}
+
+fn parse_whichtime(s: &str, reference: DateTime<Local>) -> Option<ParsedDate> {
+    let parser = WHICHTIME.get_or_init(WhichTime::new);
+    let results = parser.parse(s, Some(reference)).ok()?;
+    let result = results
+        .into_iter()
+        .max_by_key(|r| (r.end_index.saturating_sub(r.index), usize::MAX - r.index))?;
+    let ref_tz = ReferenceWithTimezone::new(reference, None);
+    let start = result.date(&ref_tz)?;
+    let date = start.date_naive();
+    let time = component_time(&result.start);
+
+    let (end_date, end_time) = if let Some(end_components) = result.end {
+        if let Some(end) = end_components.to_datetime(&ref_tz) {
+            (Some(end.date_naive()), component_time(&end_components))
+        } else {
+            (None, None)
+        }
+    } else {
+        (None, None)
+    };
+
+    Some(ParsedDate {
+        date,
+        time,
+        end_date,
+        end_time,
+        is_date_range: end_date.is_some() && time.is_none(),
+        duration_minutes: None,
+    })
+}
+
+fn component_time(components: &FastComponents) -> Option<(u32, u32)> {
+    let has_explicit_time = components.is_certain(Component::Hour)
+        || components.is_certain(Component::Minute)
+        || components.is_certain(Component::Second)
+        || components.is_certain(Component::Meridiem);
+    if !has_explicit_time {
+        return None;
+    }
+
+    let hour = components.get(Component::Hour)? as u32;
+    let minute = components.get(Component::Minute).unwrap_or(0) as u32;
+    if hour < 24 && minute < 60 {
+        Some((hour, minute))
+    } else {
+        None
+    }
 }
 
 fn parse_trailing_date_time(s: &str, today: NaiveDate) -> Option<(NaiveDate, Option<(u32, u32)>)> {
@@ -723,6 +822,11 @@ pub fn format_parsed_preview(parsed: &ParsedDate) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
+
+    fn reference() -> DateTime<Local> {
+        Local.with_ymd_and_hms(2026, 6, 10, 9, 0, 0).unwrap()
+    }
 
     #[test]
     fn interpreted_time_without_explicit_end_preserves_current_duration() {
@@ -794,5 +898,37 @@ mod tests {
         let spaced_range = parse_natural_date("6/10 09:30 - 10:15").unwrap();
         assert_eq!(spaced_range.time, Some((9, 30)));
         assert_eq!(spaced_range.end_time, Some((10, 15)));
+    }
+
+    #[test]
+    fn falls_back_to_whichtime_for_spelled_relative_dates() {
+        let parsed = parse_natural_date_with_reference("in two weeks", reference()).unwrap();
+
+        assert_eq!(parsed.date, NaiveDate::from_ymd_opt(2026, 6, 24).unwrap());
+        assert_eq!(parsed.time, None);
+    }
+
+    #[test]
+    fn falls_back_to_whichtime_for_relative_times() {
+        let parsed = parse_natural_date_with_reference("in two hours", reference()).unwrap();
+
+        assert_eq!(parsed.date, NaiveDate::from_ymd_opt(2026, 6, 10).unwrap());
+        assert_eq!(parsed.time, Some((11, 0)));
+    }
+
+    #[test]
+    fn parses_prefixed_weekday_with_existing_upcoming_semantics() {
+        let parsed = parse_natural_date_with_reference("on Monday at 3pm", reference()).unwrap();
+
+        assert_eq!(parsed.date, NaiveDate::from_ymd_opt(2026, 6, 15).unwrap());
+        assert_eq!(parsed.time, Some((15, 0)));
+    }
+
+    #[test]
+    fn falls_back_to_whichtime_for_overmorrow() {
+        let parsed = parse_natural_date_with_reference("overmorrow", reference()).unwrap();
+
+        assert_eq!(parsed.date, NaiveDate::from_ymd_opt(2026, 6, 12).unwrap());
+        assert_eq!(parsed.time, None);
     }
 }

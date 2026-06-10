@@ -1,6 +1,6 @@
 [package]
 name = "aion-calendar"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 description = "A terminal calendar and event manager"
 license = "MIT"
@@ -39,6 +39,7 @@ roxmltree = "0.20"
 uuid = { version = "1", features = ["v4"] }
 notify-rust = "4"
 iana-time-zone = "0.1"
+whichtime = "0.1"
 
 [package.metadata.binstall]
 pkg-fmt = "tzstd"
