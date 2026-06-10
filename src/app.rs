@@ -44,6 +44,8 @@ pub enum AppEvent {
     // Phase 5 MeetWith free/busy + meeting creation
     FreeBusyLoaded(Vec<crate::domain::free_slots::TimeSlot>),
     FreeBusyError(String),
+    EventCreated(crate::domain::event::CalEvent),
+    EventCreateError(String),
     MeetingCreated(crate::domain::event::CalEvent),
     Quit,
 }
@@ -332,15 +334,40 @@ async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Resul
                 }
                 app.show_message(Message::error(format!("Free/busy error: {}", msg)));
             }
+            Some(AppEvent::EventCreated(event)) => {
+                let id = event.id.clone();
+                app.events.insert(id.clone(), event.clone());
+                app.rebuild_calendars_pub();
+                app.show_message(Message::success("Event created."));
+                app.selected_event_id = Some(id);
+                app.auto_select_event();
+
+                let db_clone = Arc::clone(&db);
+                tokio::task::spawn_blocking(move || {
+                    if let Ok(conn) = db_clone.lock() {
+                        let _ = upsert_event(&conn, &event);
+                    }
+                });
+            }
+            Some(AppEvent::EventCreateError(msg)) => {
+                app.show_message(Message::error(format!("Event create failed: {}", msg)));
+            }
             Some(AppEvent::MeetingCreated(event)) => {
                 let id = event.id.clone();
-                app.events.insert(id.clone(), event);
+                app.events.insert(id.clone(), event.clone());
                 app.rebuild_calendars_pub();
                 app.meet_with = None;
                 app.pop_overlay();
                 app.show_message(Message::success("Meeting created successfully."));
                 app.selected_event_id = Some(id);
                 app.auto_select_event();
+
+                let db_clone = Arc::clone(&db);
+                tokio::task::spawn_blocking(move || {
+                    if let Ok(conn) = db_clone.lock() {
+                        let _ = upsert_event(&conn, &event);
+                    }
+                });
             }
 
             Some(AppEvent::AnimTick) => {

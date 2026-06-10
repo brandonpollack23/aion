@@ -1,20 +1,24 @@
 use chrono::{Local, NaiveDate, TimeZone};
 
 use crate::domain::event::{CalEvent, EventStatus, EventType, TimeObject};
-use crate::domain::natural_date::{format_parsed_preview, parse_natural_date};
+use crate::domain::natural_date::{
+    current_duration, format_parsed_preview, interpret_parsed_date_time, parse_natural_date,
+    shift_end_to_preserve_duration, InterpretedDateTime,
+};
 
 // Field indices — used as usize in active_field
 pub const F_TITLE: usize = 0;
-pub const F_EVENT_TYPE: usize = 1;
-pub const F_ALL_DAY: usize = 2;
-pub const F_WHEN: usize = 3;
-pub const F_START_DATE: usize = 4;
-pub const F_START_TIME: usize = 5;
-pub const F_END_DATE: usize = 6;
-pub const F_END_TIME: usize = 7;
-pub const F_LOCATION: usize = 8;
-pub const F_NOTES: usize = 9;
-pub const FIELD_COUNT: usize = 10;
+pub const F_CALENDAR: usize = 1;
+pub const F_EVENT_TYPE: usize = 2;
+pub const F_ALL_DAY: usize = 3;
+pub const F_WHEN: usize = 4;
+pub const F_START_DATE: usize = 5;
+pub const F_START_TIME: usize = 6;
+pub const F_END_DATE: usize = 7;
+pub const F_END_TIME: usize = 8;
+pub const F_LOCATION: usize = 9;
+pub const F_NOTES: usize = 10;
+pub const FIELD_COUNT: usize = 11;
 
 pub const EVENT_TYPE_LABELS: &[&str] = &["Event", "Out of office", "Focus time"];
 
@@ -40,6 +44,8 @@ pub struct DialogState {
     pub notes: String,
 
     pub calendar_key: Option<String>,
+
+    start_edit_duration: Option<chrono::Duration>,
 }
 
 impl DialogState {
@@ -61,6 +67,7 @@ impl DialogState {
             location: String::new(),
             notes: String::new(),
             calendar_key: None,
+            start_edit_duration: None,
         }
     }
 
@@ -138,6 +145,7 @@ impl DialogState {
                     event.calendar_id.as_deref().unwrap_or("primary")
                 )
             }),
+            start_edit_duration: None,
         }
     }
 
@@ -156,6 +164,7 @@ impl DialogState {
     }
 
     pub fn push_char(&mut self, c: char) {
+        let duration = self.duration_before_start_edit();
         if let Some(f) = self.active_text_mut() {
             f.push(c);
         } else if self.active_field == F_EVENT_TYPE {
@@ -165,15 +174,20 @@ impl DialogState {
         }
         if self.active_field == F_WHEN {
             self.refresh_when_preview();
+        } else {
+            self.preserve_end_after_start_edit(duration);
         }
     }
 
     pub fn pop_char(&mut self) {
+        let duration = self.duration_before_start_edit();
         if let Some(f) = self.active_text_mut() {
             f.pop();
         }
         if self.active_field == F_WHEN {
             self.refresh_when_preview();
+        } else {
+            self.preserve_end_after_start_edit(duration);
         }
     }
 
@@ -196,6 +210,7 @@ impl DialogState {
             }
         }
         self.active_field = f;
+        self.reset_start_edit_duration_if_needed();
     }
 
     pub fn prev_field(&mut self) {
@@ -210,37 +225,70 @@ impl DialogState {
             }
         }
         self.active_field = f;
+        self.reset_start_edit_duration_if_needed();
     }
 
     pub fn apply_when_input(&mut self) {
         let input = self.when_input.clone();
-        if let Some(parsed) = parse_natural_date(&input) {
-            self.start_date = parsed.date.format("%Y-%m-%d").to_string();
-            if let Some((h, m)) = parsed.time {
-                self.is_all_day = false;
-                self.start_time = format!("{:02}:{:02}", h, m);
-                if let Some((eh, em)) = parsed.end_time {
-                    self.end_time = format!("{:02}:{:02}", eh, em);
-                } else {
-                    // Default 1 hour end
-                    let end_h = if h + 1 < 24 { h + 1 } else { 23 };
-                    self.end_time = format!("{:02}:{:02}", end_h, m);
-                }
-                self.end_date = parsed.end_date.map_or_else(
-                    || self.start_date.clone(),
-                    |d| d.format("%Y-%m-%d").to_string(),
-                );
-            } else {
-                self.is_all_day = true;
-                self.start_time.clear();
-                self.end_time.clear();
-                self.end_date = parsed.end_date.map_or_else(
-                    || self.start_date.clone(),
-                    |d| d.format("%Y-%m-%d").to_string(),
-                );
-            }
+        if let Some(preview) = self.when_interpretation_for(&input) {
+            self.is_all_day = preview.is_all_day;
+            self.start_date = preview.start_date;
+            self.start_time = preview.start_time;
+            self.end_date = preview.end_date;
+            self.end_time = preview.end_time;
             self.when_input.clear();
             self.when_preview = None;
+        }
+    }
+
+    pub fn when_interpretation(&self) -> Option<InterpretedDateTime> {
+        self.when_interpretation_for(&self.when_input)
+    }
+
+    fn when_interpretation_for(&self, input: &str) -> Option<InterpretedDateTime> {
+        let parsed = parse_natural_date(input)?;
+        Some(interpret_parsed_date_time(
+            &parsed,
+            &self.start_date,
+            &self.start_time,
+            &self.end_date,
+            &self.end_time,
+        ))
+    }
+
+    fn duration_before_start_edit(&mut self) -> Option<chrono::Duration> {
+        if self.is_all_day
+            || (self.active_field != F_START_DATE && self.active_field != F_START_TIME)
+        {
+            self.start_edit_duration = None;
+            return None;
+        }
+        if self.start_edit_duration.is_none() {
+            self.start_edit_duration = current_duration(
+                &self.start_date,
+                &self.start_time,
+                &self.end_date,
+                &self.end_time,
+            );
+        }
+        self.start_edit_duration
+    }
+
+    fn preserve_end_after_start_edit(&mut self, duration: Option<chrono::Duration>) {
+        let Some(duration) = duration else {
+            return;
+        };
+        if let Some((end_date, end_time)) =
+            shift_end_to_preserve_duration(&self.start_date, &self.start_time, duration)
+        {
+            self.end_date = end_date;
+            self.end_time = end_time;
+        }
+    }
+
+    fn reset_start_edit_duration_if_needed(&mut self) {
+        if self.active_field != F_START_DATE && self.active_field != F_START_TIME {
+            self.start_edit_duration = None;
         }
     }
 
@@ -360,5 +408,45 @@ impl DialogState {
             account_email,
             calendar_id,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn editing_start_time_preserves_existing_duration_after_invalid_intermediate_input() {
+        let day = NaiveDate::from_ymd_opt(2026, 6, 10).unwrap();
+        let mut state = DialogState::new_event(day);
+        state.start_time = "09:00".to_string();
+        state.end_time = "10:30".to_string();
+        state.active_field = F_START_TIME;
+
+        for _ in 0..5 {
+            state.pop_char();
+        }
+        for c in "11:15".chars() {
+            state.push_char(c);
+        }
+
+        assert_eq!(state.start_time, "11:15");
+        assert_eq!(state.end_date, "2026-06-10");
+        assert_eq!(state.end_time, "12:45");
+    }
+
+    #[test]
+    fn applying_when_without_end_preserves_existing_duration() {
+        let day = NaiveDate::from_ymd_opt(2026, 6, 10).unwrap();
+        let mut state = DialogState::new_event(day);
+        state.start_time = "09:00".to_string();
+        state.end_time = "10:30".to_string();
+        state.when_input = "1:15pm".to_string();
+
+        state.apply_when_input();
+
+        assert_eq!(state.start_time, "13:15");
+        assert_eq!(state.end_time, "14:45");
+        assert!(state.when_input.is_empty());
     }
 }

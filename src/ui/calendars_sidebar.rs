@@ -51,7 +51,10 @@ pub fn render_calendars_sidebar(app: &AppState, frame: &mut Frame, area: Rect) {
                 cal.account_email.clone()
             };
             lines.push(Line::from(Span::styled(
-                format!(" {}", truncate(&account_label, inner.width as usize - 2)),
+                format!(
+                    " {}",
+                    truncate(&account_label, (inner.width as usize).saturating_sub(2))
+                ),
                 Style::default()
                     .fg(app.theme.text_dim)
                     .add_modifier(Modifier::BOLD),
@@ -61,13 +64,16 @@ pub fn render_calendars_sidebar(app: &AppState, frame: &mut Frame, area: Rect) {
 
         let is_selected = idx == app.selected_calendar_index;
         let is_enabled = !app.disabled_calendars.contains(&cal.key);
+        let is_new_event_calendar =
+            app.selected_new_event_calendar_key().as_deref() == Some(&cal.key);
         let cal_color = cal
             .color
             .unwrap_or_else(|| app.theme.calendar_color(&cal.key));
 
         let check = if is_enabled { "●" } else { "○" };
-        let name = truncate(&cal.display_name, inner.width as usize - 4);
-        let label = format!("  {} {}", check, name);
+        let target = if is_new_event_calendar { ">" } else { " " };
+        let name = truncate(&cal.display_name, (inner.width as usize).saturating_sub(5));
+        let label = format!(" {}{} {}", target, check, name);
 
         let style = if is_selected && is_focused {
             Style::default()
@@ -101,9 +107,22 @@ fn truncate(s: &str, max: usize) -> String {
     if max == 0 {
         return String::new();
     }
-    if s.len() <= max {
+    let char_count = s.chars().count();
+    if char_count <= max {
         s.to_string()
     } else {
-        format!("{}…", &s[..max.saturating_sub(1)])
+        let truncated: String = s.chars().take(max.saturating_sub(1)).collect();
+        format!("{}…", truncated)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::truncate;
+
+    #[test]
+    fn truncate_respects_utf8_char_boundaries() {
+        assert_eq!(truncate("Calendar ωmega", 15), "Calendar ωmega");
+        assert_eq!(truncate("Calendar ωmega", 10), "Calendar …");
     }
 }

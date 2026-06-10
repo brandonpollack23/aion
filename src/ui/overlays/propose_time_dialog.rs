@@ -62,6 +62,24 @@ pub fn render_propose_time_dialog(app: &AppState, frame: &mut Frame, area: Rect)
             Constraint::Length(1), // footer
         ])
         .split(inner);
+    let when_interpretation = pt.when_interpretation();
+    let previewing_when = when_interpretation.is_some();
+    let display_start_date = when_interpretation
+        .as_ref()
+        .map_or(pt.start_date.as_str(), |preview| {
+            preview.start_date.as_str()
+        });
+    let display_start_time = when_interpretation
+        .as_ref()
+        .map_or(pt.start_time.as_str(), |preview| {
+            preview.start_time.as_str()
+        });
+    let display_end_date = when_interpretation
+        .as_ref()
+        .map_or(pt.end_date.as_str(), |preview| preview.end_date.as_str());
+    let display_end_time = when_interpretation
+        .as_ref()
+        .map_or(pt.end_time.as_str(), |preview| preview.end_time.as_str());
 
     // Event title
     frame.render_widget(
@@ -118,8 +136,10 @@ pub fn render_propose_time_dialog(app: &AppState, frame: &mut Frame, area: Rect)
             Paragraph::new(Line::from(vec![
                 Span::raw("         "),
                 Span::styled(
-                    format!("→ {} (Enter)", preview),
-                    Style::default().fg(Color::Green),
+                    format!("● {} Enter", preview),
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD),
                 ),
             ])),
             when_rows[1],
@@ -131,11 +151,12 @@ pub fn render_propose_time_dialog(app: &AppState, frame: &mut Frame, area: Rect)
         frame,
         rows[4],
         "start:   ",
-        &pt.start_date,
-        Some(&pt.start_time),
+        display_start_date,
+        Some(display_start_time),
         pt.active_field == PT_FIELD_START_DATE || pt.active_field == PT_FIELD_START_TIME,
         pt.active_field == PT_FIELD_START_DATE,
         pt.active_field == PT_FIELD_START_TIME,
+        previewing_when,
     );
 
     // End row
@@ -143,11 +164,12 @@ pub fn render_propose_time_dialog(app: &AppState, frame: &mut Frame, area: Rect)
         frame,
         rows[5],
         "end:     ",
-        &pt.end_date,
-        Some(&pt.end_time),
+        display_end_date,
+        Some(display_end_time),
         pt.active_field == PT_FIELD_END_DATE || pt.active_field == PT_FIELD_END_TIME,
         pt.active_field == PT_FIELD_END_DATE,
         pt.active_field == PT_FIELD_END_TIME,
+        previewing_when,
     );
 
     // Message
@@ -202,11 +224,17 @@ fn render_date_time_row(
     _row_active: bool,
     date_active: bool,
     time_active: bool,
+    previewing_when: bool,
 ) {
+    let preview_style = Style::default()
+        .fg(Color::Green)
+        .add_modifier(Modifier::BOLD);
     let date_style = if date_active {
         Style::default()
             .fg(Color::White)
             .add_modifier(Modifier::BOLD)
+    } else if previewing_when {
+        preview_style
     } else {
         Style::default().fg(Color::Gray)
     };
@@ -214,6 +242,8 @@ fn render_date_time_row(
         Style::default()
             .fg(Color::White)
             .add_modifier(Modifier::BOLD)
+    } else if previewing_when {
+        preview_style
     } else {
         Style::default().fg(Color::Gray)
     };

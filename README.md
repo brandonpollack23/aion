@@ -282,6 +282,7 @@ Use `j`/`k` to move through events, `h`/`l` to switch panes, `Enter` to view det
 | Key | Action |
 |-----|--------|
 | `Shift+C` | Toggle calendars sidebar |
+| `d` | Use selected calendar for new events |
 | `A` | Toggle all-day events section |
 
 ### View
@@ -379,11 +380,19 @@ When creating or editing events, you can use natural language for dates and time
 | `from march 5 for 2 weeks` | All-day event, March 5-19 |
 | `between march 6 and 12` | All-day event, March 6-12 |
 
+New events also include a calendar dropdown. It defaults to `defaultCalendar` from config, or the calendar selected with `d` in the calendars sidebar.
+
 ---
 
 ## Configuration
 
 Create `~/.config/aion/config.toml` to customize Aion.
+
+Set the default destination for newly created events by calendar display name:
+
+```toml
+defaultCalendar = "Work"
+```
 
 ### Google Calendar
 

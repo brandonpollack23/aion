@@ -352,6 +352,8 @@ pub struct Config {
     pub caldav: Vec<CalDAVAccount>,
     #[serde(default)]
     pub notifications: NotificationsConfig,
+    #[serde(rename = "defaultCalendar")]
+    pub default_calendar: Option<String>,
     #[serde(rename = "hiddenCalendars", default = "default_hidden_calendars")]
     pub hidden_calendars: std::collections::HashSet<String>,
 }

@@ -8,8 +8,8 @@ use ratatui::{
 
 use crate::state::app_state::AppState;
 use crate::state::dialog::{
-    DialogState, EVENT_TYPE_LABELS, F_ALL_DAY, F_END_DATE, F_END_TIME, F_EVENT_TYPE, F_LOCATION,
-    F_NOTES, F_START_DATE, F_START_TIME, F_TITLE, F_WHEN,
+    DialogState, EVENT_TYPE_LABELS, F_ALL_DAY, F_CALENDAR, F_END_DATE, F_END_TIME, F_EVENT_TYPE,
+    F_LOCATION, F_NOTES, F_START_DATE, F_START_TIME, F_TITLE, F_WHEN,
 };
 use crate::ui::layout_helpers::centered_fixed;
 
@@ -60,6 +60,10 @@ pub fn render_event_dialog(app: &AppState, frame: &mut Frame, area: Rect) {
 fn compute_height(ds: &DialogState, max: u16) -> u16 {
     let mut rows: u16 = 2; // borders
     rows += 1; // title
+    rows += 1; // calendar
+    if ds.active_field == F_CALENDAR {
+        rows += 4; // dropdown
+    }
     rows += 1; // type + all-day
     rows += 1; // when
     if ds.when_preview.is_some() {
@@ -119,6 +123,13 @@ fn text_field_spans<'a>(
 
 fn build_form_lines<'a>(app: &'a AppState, ds: &'a DialogState, width: u16) -> Vec<Line<'a>> {
     let mut lines: Vec<Line> = Vec::new();
+    let when_interpretation = ds.when_interpretation();
+    let preview_style = Style::default()
+        .fg(app.theme.accent_success)
+        .add_modifier(Modifier::BOLD);
+    let display_is_all_day = when_interpretation
+        .as_ref()
+        .map_or(ds.is_all_day, |preview| preview.is_all_day);
 
     // Title
     {
@@ -126,6 +137,60 @@ fn build_form_lines<'a>(app: &'a AppState, ds: &'a DialogState, width: u16) -> V
         let mut spans = vec![label_span("title", app)];
         spans.extend(text_field_spans(app, &ds.title, active, "(no title)"));
         lines.push(Line::from(spans));
+    }
+
+    // Calendar
+    {
+        let active = ds.active_field == F_CALENDAR;
+        let default_calendar_key = app.selected_new_event_calendar_key();
+        let selected_key = ds
+            .calendar_key
+            .as_deref()
+            .or(default_calendar_key.as_deref());
+        let selected_name = selected_key
+            .and_then(|key| calendar_name(app, key))
+            .unwrap_or("No calendars");
+        let style = if active {
+            Style::default()
+                .fg(app.theme.accent_primary)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(app.theme.text_secondary)
+        };
+        lines.push(Line::from(vec![
+            label_span("calendar", app),
+            Span::styled("▾ ", style),
+            Span::styled(
+                truncate_chars(selected_name, width.saturating_sub(12) as usize),
+                style,
+            ),
+        ]));
+
+        if active {
+            let selected_idx = selected_key
+                .and_then(|key| app.calendars.iter().position(|cal| cal.key == key))
+                .unwrap_or(0);
+            let start = selected_idx.saturating_sub(1);
+            for cal in app.calendars.iter().skip(start).take(4) {
+                let is_selected = selected_key == Some(cal.key.as_str());
+                let marker = if is_selected { ">" } else { " " };
+                let option_style = if is_selected {
+                    Style::default()
+                        .fg(app.theme.selection_text)
+                        .bg(app.theme.selection_bg)
+                } else {
+                    Style::default().fg(app.theme.text_secondary)
+                };
+                lines.push(Line::from(vec![
+                    Span::raw(format!("{:<label_w$} ", "", label_w = LABEL_W)),
+                    Span::styled(format!("{} ", marker), option_style),
+                    Span::styled(
+                        truncate_chars(&cal.display_name, width.saturating_sub(13) as usize),
+                        option_style,
+                    ),
+                ]));
+            }
+        }
     }
 
     // Type + All-day on one line
@@ -173,15 +238,9 @@ fn build_form_lines<'a>(app: &'a AppState, ds: &'a DialogState, width: u16) -> V
         if let Some(ref preview) = ds.when_preview {
             lines.push(Line::from(vec![
                 Span::raw(format!("{:<label_w$} ", "", label_w = LABEL_W)),
-                Span::styled("→ ", Style::default().fg(app.theme.accent_success)),
-                Span::styled(
-                    preview.clone(),
-                    Style::default().fg(app.theme.accent_success),
-                ),
-                Span::styled(
-                    "  (Enter to apply)",
-                    Style::default().fg(app.theme.text_dim),
-                ),
+                Span::styled("● ", preview_style),
+                Span::styled(preview.clone(), preview_style),
+                Span::styled("  Enter to apply", Style::default().fg(app.theme.text_dim)),
             ]));
         }
     }
@@ -192,16 +251,24 @@ fn build_form_lines<'a>(app: &'a AppState, ds: &'a DialogState, width: u16) -> V
         let time_active = ds.active_field == F_START_TIME;
 
         let mut spans = vec![label_span("start", app)];
-        spans.extend(text_field_spans(
-            app,
-            &ds.start_date,
-            date_active,
-            "YYYY-MM-DD",
-        ));
+        if let Some(preview) = when_interpretation.as_ref() {
+            spans.push(Span::styled(preview.start_date.clone(), preview_style));
+        } else {
+            spans.extend(text_field_spans(
+                app,
+                &ds.start_date,
+                date_active,
+                "YYYY-MM-DD",
+            ));
+        }
 
-        if !ds.is_all_day {
+        if !display_is_all_day {
             spans.push(Span::styled("  ", Style::default()));
-            spans.extend(text_field_spans(app, &ds.start_time, time_active, "HH:MM"));
+            if let Some(preview) = when_interpretation.as_ref() {
+                spans.push(Span::styled(preview.start_time.clone(), preview_style));
+            } else {
+                spans.extend(text_field_spans(app, &ds.start_time, time_active, "HH:MM"));
+            }
         }
         lines.push(Line::from(spans));
     }
@@ -212,16 +279,24 @@ fn build_form_lines<'a>(app: &'a AppState, ds: &'a DialogState, width: u16) -> V
         let time_active = ds.active_field == F_END_TIME;
 
         let mut spans = vec![label_span("end", app)];
-        spans.extend(text_field_spans(
-            app,
-            &ds.end_date,
-            date_active,
-            "YYYY-MM-DD",
-        ));
+        if let Some(preview) = when_interpretation.as_ref() {
+            spans.push(Span::styled(preview.end_date.clone(), preview_style));
+        } else {
+            spans.extend(text_field_spans(
+                app,
+                &ds.end_date,
+                date_active,
+                "YYYY-MM-DD",
+            ));
+        }
 
-        if !ds.is_all_day {
+        if !display_is_all_day {
             spans.push(Span::styled("  ", Style::default()));
-            spans.extend(text_field_spans(app, &ds.end_time, time_active, "HH:MM"));
+            if let Some(preview) = when_interpretation.as_ref() {
+                spans.push(Span::styled(preview.end_time.clone(), preview_style));
+            } else {
+                spans.extend(text_field_spans(app, &ds.end_time, time_active, "HH:MM"));
+            }
         }
         lines.push(Line::from(spans));
     }
@@ -261,4 +336,24 @@ fn build_form_lines<'a>(app: &'a AppState, ds: &'a DialogState, width: u16) -> V
     ]));
 
     lines
+}
+
+fn calendar_name<'a>(app: &'a AppState, key: &str) -> Option<&'a str> {
+    app.calendars
+        .iter()
+        .find(|cal| cal.key == key)
+        .map(|cal| cal.display_name.as_str())
+}
+
+fn truncate_chars(s: &str, max: usize) -> String {
+    if max == 0 {
+        return String::new();
+    }
+    let char_count = s.chars().count();
+    if char_count <= max {
+        s.to_string()
+    } else {
+        let truncated: String = s.chars().take(max.saturating_sub(1)).collect();
+        format!("{}…", truncated)
+    }
 }

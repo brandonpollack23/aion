@@ -57,6 +57,7 @@ pub struct AppState {
     pub calendar_sidebar_visible: bool,
     pub selected_calendar_index: usize,
     pub disabled_calendars: HashSet<String>, // keys that are toggled off
+    pub new_event_calendar_key: Option<String>,
     pub calendar_sidebar_scroll: usize,
     pub calendar_sidebar_height: std::cell::Cell<u16>,
 
@@ -154,6 +155,7 @@ impl AppState {
             calendar_sidebar_visible: false,
             selected_calendar_index: 0,
             disabled_calendars: hidden_calendars,
+            new_event_calendar_key: None,
             calendar_sidebar_scroll: 0,
             calendar_sidebar_height: std::cell::Cell::new(0),
             overlay_stack: Vec::new(),
@@ -240,6 +242,7 @@ impl AppState {
                 .then(a.calendar_id.cmp(&b.calendar_id))
         });
         self.calendars = cals;
+        self.sync_new_event_calendar_selection();
     }
 
     pub fn filtered_events(&self) -> Vec<&CalEvent> {
@@ -286,6 +289,63 @@ impl AppState {
         if selected_line < self.calendar_sidebar_scroll {
             self.calendar_sidebar_scroll = selected_line;
         }
+    }
+
+    pub fn selected_new_event_calendar_key(&self) -> Option<String> {
+        if let Some(ref key) = self.new_event_calendar_key {
+            if self.calendars.iter().any(|cal| &cal.key == key) {
+                return Some(key.clone());
+            }
+        }
+        if let Some(ref name) = self.config.default_calendar {
+            if let Some(cal) = self.find_calendar_by_config_name(name) {
+                return Some(cal.key.clone());
+            }
+        }
+        self.calendars.first().map(|cal| cal.key.clone())
+    }
+
+    pub fn select_new_event_calendar(&mut self, idx: usize) -> Option<String> {
+        let cal = self.calendars.get(idx)?;
+        self.new_event_calendar_key = Some(cal.key.clone());
+        self.config.default_calendar = Some(cal.display_name.clone());
+        Some(cal.display_name.clone())
+    }
+
+    pub fn select_new_event_calendar_by_key(&mut self, key: &str) -> Option<String> {
+        let cal = self.calendars.iter().find(|cal| cal.key == key)?;
+        self.new_event_calendar_key = Some(cal.key.clone());
+        self.config.default_calendar = Some(cal.display_name.clone());
+        Some(cal.display_name.clone())
+    }
+
+    fn sync_new_event_calendar_selection(&mut self) {
+        if self
+            .new_event_calendar_key
+            .as_ref()
+            .is_some_and(|key| self.calendars.iter().any(|cal| &cal.key == key))
+        {
+            return;
+        }
+
+        self.new_event_calendar_key = self
+            .config
+            .default_calendar
+            .as_ref()
+            .and_then(|name| {
+                self.find_calendar_by_config_name(name)
+                    .map(|cal| cal.key.clone())
+            })
+            .or_else(|| self.calendars.first().map(|cal| cal.key.clone()));
+    }
+
+    fn find_calendar_by_config_name(&self, name: &str) -> Option<&CalendarInfo> {
+        let needle = name.trim();
+        self.calendars
+            .iter()
+            .find(|cal| cal.display_name == needle)
+            .or_else(|| self.calendars.iter().find(|cal| cal.key == needle))
+            .or_else(|| self.calendars.iter().find(|cal| cal.calendar_id == needle))
     }
 
     pub fn day_layout(&self, day: NaiveDate) -> DayLayout {
@@ -597,6 +657,7 @@ impl AppState {
                 .cmp(&b.account_email)
                 .then(a.calendar_id.cmp(&b.calendar_id))
         });
+        self.sync_new_event_calendar_selection();
     }
 }
 

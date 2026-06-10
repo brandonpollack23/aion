@@ -133,11 +133,15 @@ pub static DIALOG_BINDS: Section = Section {
         },
         KeybindDef {
             display: "Enter",
-            description: "Apply / confirm field",
+            description: "Apply / cycle field",
         },
         KeybindDef {
             display: "Space",
-            description: "Toggle checkbox / cycle type",
+            description: "Toggle checkbox / cycle dropdown",
+        },
+        KeybindDef {
+            display: "j/k / ↑/↓",
+            description: "Change calendar dropdown",
         },
         KeybindDef {
             display: "Ctrl+S",
@@ -206,6 +210,10 @@ pub static CALENDARS_BINDS: Section = Section {
         KeybindDef {
             display: "Space",
             description: "Toggle calendar visibility",
+        },
+        KeybindDef {
+            display: "d",
+            description: "Use for new events",
         },
     ],
 };

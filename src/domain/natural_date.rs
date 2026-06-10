@@ -1,4 +1,4 @@
-use chrono::{Datelike, Duration, Local, NaiveDate, Weekday};
+use chrono::{Datelike, Duration, Local, NaiveDate, NaiveDateTime, Weekday};
 
 #[derive(Debug, Clone)]
 pub struct ParsedDate {
@@ -8,6 +8,104 @@ pub struct ParsedDate {
     pub end_time: Option<(u32, u32)>,
     pub is_date_range: bool,
     pub duration_minutes: Option<i64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct InterpretedDateTime {
+    pub is_all_day: bool,
+    pub start_date: String,
+    pub start_time: String,
+    pub end_date: String,
+    pub end_time: String,
+}
+
+pub fn interpret_parsed_date_time(
+    parsed: &ParsedDate,
+    current_start_date: &str,
+    current_start_time: &str,
+    current_end_date: &str,
+    current_end_time: &str,
+) -> InterpretedDateTime {
+    let start_date = parsed.date.format("%Y-%m-%d").to_string();
+
+    let Some((h, m)) = parsed.time else {
+        return InterpretedDateTime {
+            is_all_day: true,
+            start_date,
+            start_time: String::new(),
+            end_date: parsed
+                .end_date
+                .unwrap_or(parsed.date)
+                .format("%Y-%m-%d")
+                .to_string(),
+            end_time: String::new(),
+        };
+    };
+
+    let start = parsed.date.and_hms_opt(h, m, 0).unwrap();
+    let end = if let Some(duration_minutes) = parsed.duration_minutes {
+        start + Duration::minutes(duration_minutes)
+    } else if let Some((eh, em)) = parsed.end_time {
+        let end_date = parsed.end_date.unwrap_or(parsed.date);
+        let end = end_date.and_hms_opt(eh, em, 0).unwrap();
+        if parsed.end_date.is_none() && end <= start {
+            end + Duration::days(1)
+        } else {
+            end
+        }
+    } else if let Some(duration) = current_duration(
+        current_start_date,
+        current_start_time,
+        current_end_date,
+        current_end_time,
+    ) {
+        start + duration
+    } else {
+        start + Duration::hours(1)
+    };
+
+    InterpretedDateTime {
+        is_all_day: false,
+        start_date,
+        start_time: format!("{:02}:{:02}", h, m),
+        end_date: end.date().format("%Y-%m-%d").to_string(),
+        end_time: end.time().format("%H:%M").to_string(),
+    }
+}
+
+pub fn current_duration(
+    start_date: &str,
+    start_time: &str,
+    end_date: &str,
+    end_time: &str,
+) -> Option<Duration> {
+    let start = parse_datetime_fields(start_date, start_time)?;
+    let end = parse_datetime_fields(end_date, end_time)?;
+    let duration = end - start;
+    if duration > Duration::zero() {
+        Some(duration)
+    } else {
+        None
+    }
+}
+
+pub fn shift_end_to_preserve_duration(
+    new_start_date: &str,
+    new_start_time: &str,
+    duration: Duration,
+) -> Option<(String, String)> {
+    let new_start = parse_datetime_fields(new_start_date, new_start_time)?;
+    let new_end = new_start + duration;
+    Some((
+        new_end.date().format("%Y-%m-%d").to_string(),
+        new_end.time().format("%H:%M").to_string(),
+    ))
+}
+
+fn parse_datetime_fields(date: &str, time: &str) -> Option<NaiveDateTime> {
+    let date = NaiveDate::parse_from_str(date, "%Y-%m-%d").ok()?;
+    let time = chrono::NaiveTime::parse_from_str(time, "%H:%M").ok()?;
+    Some(date.and_time(time))
 }
 
 pub fn parse_natural_date(input: &str) -> Option<ParsedDate> {
@@ -451,4 +549,49 @@ pub fn format_parsed_preview(parsed: &ParsedDate) -> String {
     };
 
     format!("{}{}", date_str, time_str)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn interpreted_time_without_explicit_end_preserves_current_duration() {
+        let parsed = ParsedDate {
+            date: NaiveDate::from_ymd_opt(2026, 6, 10).unwrap(),
+            time: Some((13, 15)),
+            end_date: None,
+            end_time: None,
+            is_date_range: false,
+            duration_minutes: None,
+        };
+
+        let interpreted =
+            interpret_parsed_date_time(&parsed, "2026-06-10", "09:00", "2026-06-10", "10:30");
+
+        assert!(!interpreted.is_all_day);
+        assert_eq!(interpreted.start_date, "2026-06-10");
+        assert_eq!(interpreted.start_time, "13:15");
+        assert_eq!(interpreted.end_date, "2026-06-10");
+        assert_eq!(interpreted.end_time, "14:45");
+    }
+
+    #[test]
+    fn interpreted_explicit_end_crosses_midnight_when_needed() {
+        let parsed = ParsedDate {
+            date: NaiveDate::from_ymd_opt(2026, 6, 10).unwrap(),
+            time: Some((23, 30)),
+            end_date: None,
+            end_time: Some((0, 15)),
+            is_date_range: false,
+            duration_minutes: None,
+        };
+
+        let interpreted =
+            interpret_parsed_date_time(&parsed, "2026-06-10", "09:00", "2026-06-10", "10:00");
+
+        assert_eq!(interpreted.start_time, "23:30");
+        assert_eq!(interpreted.end_date, "2026-06-11");
+        assert_eq!(interpreted.end_time, "00:15");
+    }
 }

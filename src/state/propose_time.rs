@@ -1,5 +1,8 @@
 use crate::domain::event::CalEvent;
-use crate::domain::natural_date::{format_parsed_preview, parse_natural_date};
+use crate::domain::natural_date::{
+    current_duration, format_parsed_preview, interpret_parsed_date_time, parse_natural_date,
+    shift_end_to_preserve_duration, InterpretedDateTime,
+};
 
 pub const PT_FIELD_WHEN: usize = 0;
 pub const PT_FIELD_START_DATE: usize = 1;
@@ -27,6 +30,8 @@ pub struct ProposeTimeState {
     pub when_preview: Option<String>,
 
     pub active_field: usize,
+
+    start_edit_duration: Option<chrono::Duration>,
 }
 
 impl ProposeTimeState {
@@ -84,11 +89,13 @@ impl ProposeTimeState {
             when_input: String::new(),
             when_preview: None,
             active_field: PT_FIELD_WHEN,
+            start_edit_duration: None,
         }
     }
 
     pub fn next_field(&mut self) {
         self.active_field = (self.active_field + 1) % PT_FIELD_COUNT;
+        self.reset_start_edit_duration_if_needed();
     }
 
     pub fn prev_field(&mut self) {
@@ -97,6 +104,7 @@ impl ProposeTimeState {
         } else {
             self.active_field - 1
         };
+        self.reset_start_edit_duration_if_needed();
     }
 
     pub fn active_string(&mut self) -> &mut String {
@@ -113,19 +121,25 @@ impl ProposeTimeState {
 
     pub fn push_char(&mut self, c: char) {
         let field = self.active_field;
+        let duration = self.duration_before_start_edit();
         let s = self.active_string();
         s.push(c);
         if field == PT_FIELD_WHEN {
             self.refresh_when_preview();
+        } else {
+            self.preserve_end_after_start_edit(duration);
         }
     }
 
     pub fn pop_char(&mut self) {
         let field = self.active_field;
+        let duration = self.duration_before_start_edit();
         let s = self.active_string();
         s.pop();
         if field == PT_FIELD_WHEN {
             self.refresh_when_preview();
+        } else {
+            self.preserve_end_after_start_edit(duration);
         }
     }
 
@@ -139,27 +153,63 @@ impl ProposeTimeState {
     }
 
     pub fn apply_when_input(&mut self) {
-        if let Some(parsed) = parse_natural_date(&self.when_input.clone()) {
-            self.start_date = parsed.date.format("%Y-%m-%d").to_string();
-            if let Some((h, m)) = parsed.time {
-                self.start_time = format!("{:02}:{:02}", h, m);
-            } else {
-                self.start_time = "09:00".to_string();
-            }
-            if let Some(end) = parsed.end_date {
-                self.end_date = end.format("%Y-%m-%d").to_string();
-                self.end_time = if let Some((_h, _m)) = parsed.end_time {
-                    format!("{:02}:{:02}", _h, _m)
-                } else {
-                    "10:00".to_string()
-                };
-            } else {
-                self.end_date = self.start_date.clone();
-                self.end_time = "10:00".to_string();
-            }
+        if let Some(preview) = self.when_interpretation() {
+            self.is_all_day = preview.is_all_day;
+            self.start_date = preview.start_date;
+            self.start_time = preview.start_time;
+            self.end_date = preview.end_date;
+            self.end_time = preview.end_time;
             self.when_input.clear();
             self.when_preview = None;
             self.active_field = PT_FIELD_MESSAGE;
+        }
+    }
+
+    pub fn when_interpretation(&self) -> Option<InterpretedDateTime> {
+        let parsed = parse_natural_date(&self.when_input)?;
+        Some(interpret_parsed_date_time(
+            &parsed,
+            &self.start_date,
+            &self.start_time,
+            &self.end_date,
+            &self.end_time,
+        ))
+    }
+
+    fn duration_before_start_edit(&mut self) -> Option<chrono::Duration> {
+        if self.is_all_day
+            || (self.active_field != PT_FIELD_START_DATE
+                && self.active_field != PT_FIELD_START_TIME)
+        {
+            self.start_edit_duration = None;
+            return None;
+        }
+        if self.start_edit_duration.is_none() {
+            self.start_edit_duration = current_duration(
+                &self.start_date,
+                &self.start_time,
+                &self.end_date,
+                &self.end_time,
+            );
+        }
+        self.start_edit_duration
+    }
+
+    fn preserve_end_after_start_edit(&mut self, duration: Option<chrono::Duration>) {
+        let Some(duration) = duration else {
+            return;
+        };
+        if let Some((end_date, end_time)) =
+            shift_end_to_preserve_duration(&self.start_date, &self.start_time, duration)
+        {
+            self.end_date = end_date;
+            self.end_time = end_time;
+        }
+    }
+
+    fn reset_start_edit_duration_if_needed(&mut self) {
+        if self.active_field != PT_FIELD_START_DATE && self.active_field != PT_FIELD_START_TIME {
+            self.start_edit_duration = None;
         }
     }
 }

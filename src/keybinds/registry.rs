@@ -40,7 +40,7 @@ pub async fn handle_key(app: &mut AppState, key: KeyEvent, tx: &UnboundedSender<
             false
         }
         FocusContext::Dialog => {
-            handle_dialog_input(app, key);
+            handle_dialog_input(app, key, tx);
             false
         }
         FocusContext::Goto => {
@@ -255,6 +255,11 @@ async fn handle_navigation(
 
         // a: toggle all-day expanded
         KeyCode::Char('a') if no_mods => app.all_day_expanded = !app.all_day_expanded,
+
+        // d: set selected calendar as the new-event destination
+        KeyCode::Char('d') if no_mods && app.focus == FocusContext::Calendars => {
+            select_new_event_calendar(app);
+        }
 
         // 3: cycle column view (1→3→5→1)
         KeyCode::Char('3') if no_mods => app.toggle_column_count(),
@@ -826,7 +831,7 @@ fn cycle_focus(app: &mut AppState) {
 
 fn open_event_dialog_new(app: &mut AppState) {
     let prev = app.focus.clone();
-    app.dialog_state = Some(DialogState::new_event(app.selected_day));
+    app.dialog_state = Some(new_event_dialog_state(app));
     app.push_overlay(Overlay {
         kind: OverlayKind::Dialog,
         prev_focus: Some(prev),
@@ -864,6 +869,22 @@ fn toggle_calendar(app: &mut AppState) {
     }
 }
 
+fn select_new_event_calendar(app: &mut AppState) {
+    if let Some(name) = app.select_new_event_calendar(app.selected_calendar_index) {
+        let _ = crate::config::loader::save_config(&app.config);
+        app.show_message(crate::state::message::Message::success(format!(
+            "New events will use {}",
+            name
+        )));
+    }
+}
+
+fn new_event_dialog_state(app: &AppState) -> DialogState {
+    let mut ds = DialogState::new_event(app.selected_day);
+    ds.calendar_key = app.selected_new_event_calendar_key();
+    ds
+}
+
 fn execute_command(app: &mut AppState, cmd: &str, tx: &UnboundedSender<AppEvent>) {
     if !cmd.is_empty() {
         app.command_history.push(cmd.to_string());
@@ -894,7 +915,7 @@ fn execute_command(app: &mut AppState, cmd: &str, tx: &UnboundedSender<AppEvent>
         }
         "new" => {
             let prev = app.focus.clone();
-            app.dialog_state = Some(DialogState::new_event(app.selected_day));
+            app.dialog_state = Some(new_event_dialog_state(app));
             if !arg.is_empty() {
                 if let Some(ref mut ds) = app.dialog_state {
                     ds.title = arg.to_string();
@@ -1053,8 +1074,8 @@ fn cmd_logout(app: &mut AppState, _tx: &UnboundedSender<AppEvent>) {
     ));
 }
 
-fn handle_dialog_input(app: &mut AppState, key: KeyEvent) {
-    use crate::state::dialog::{F_ALL_DAY, F_EVENT_TYPE, F_WHEN};
+fn handle_dialog_input(app: &mut AppState, key: KeyEvent, tx: &UnboundedSender<AppEvent>) {
+    use crate::state::dialog::{F_ALL_DAY, F_CALENDAR, F_EVENT_TYPE, F_WHEN};
     let ctrl = key.modifiers == KeyModifiers::CONTROL;
     let shift = key.modifiers == KeyModifiers::SHIFT;
     let no_mods = key.modifiers == KeyModifiers::NONE;
@@ -1067,7 +1088,7 @@ fn handle_dialog_input(app: &mut AppState, key: KeyEvent) {
 
         // Ctrl+S: save
         KeyCode::Char('s') if ctrl => {
-            dialog_save(app);
+            dialog_save(app, tx);
         }
 
         // Tab: next field
@@ -1084,6 +1105,50 @@ fn handle_dialog_input(app: &mut AppState, key: KeyEvent) {
             }
         }
 
+        KeyCode::Down if no_mods => {
+            if app
+                .dialog_state
+                .as_ref()
+                .is_some_and(|ds| ds.active_field == F_CALENDAR)
+            {
+                cycle_dialog_calendar(app, 1);
+            }
+        }
+
+        KeyCode::Up if no_mods => {
+            if app
+                .dialog_state
+                .as_ref()
+                .is_some_and(|ds| ds.active_field == F_CALENDAR)
+            {
+                cycle_dialog_calendar(app, -1);
+            }
+        }
+
+        KeyCode::Char('j') if no_mods => {
+            if app
+                .dialog_state
+                .as_ref()
+                .is_some_and(|ds| ds.active_field == F_CALENDAR)
+            {
+                cycle_dialog_calendar(app, 1);
+            } else if let Some(ref mut ds) = app.dialog_state {
+                ds.push_char('j');
+            }
+        }
+
+        KeyCode::Char('k') if no_mods => {
+            if app
+                .dialog_state
+                .as_ref()
+                .is_some_and(|ds| ds.active_field == F_CALENDAR)
+            {
+                cycle_dialog_calendar(app, -1);
+            } else if let Some(ref mut ds) = app.dialog_state {
+                ds.push_char('k');
+            }
+        }
+
         // Backspace
         KeyCode::Backspace if no_mods => {
             if let Some(ref mut ds) = app.dialog_state {
@@ -1096,6 +1161,8 @@ fn handle_dialog_input(app: &mut AppState, key: KeyEvent) {
             if let Some(ref mut ds) = app.dialog_state {
                 if ds.active_field == F_WHEN && !ds.when_input.is_empty() {
                     ds.apply_when_input();
+                } else if ds.active_field == F_CALENDAR {
+                    ds.next_field();
                 } else if ds.active_field == F_EVENT_TYPE {
                     ds.event_type_idx =
                         (ds.event_type_idx + 1) % crate::state::dialog::EVENT_TYPE_LABELS.len();
@@ -1112,6 +1179,8 @@ fn handle_dialog_input(app: &mut AppState, key: KeyEvent) {
             if let Some(ref mut ds) = app.dialog_state {
                 if ds.active_field == F_ALL_DAY {
                     ds.toggle_all_day();
+                } else if ds.active_field == F_CALENDAR {
+                    cycle_dialog_calendar(app, 1);
                 } else if ds.active_field == F_EVENT_TYPE {
                     ds.event_type_idx =
                         (ds.event_type_idx + 1) % crate::state::dialog::EVENT_TYPE_LABELS.len();
@@ -1132,18 +1201,144 @@ fn handle_dialog_input(app: &mut AppState, key: KeyEvent) {
     }
 }
 
-fn dialog_save(app: &mut AppState) {
-    let event = match app.dialog_state.as_ref() {
-        Some(ds) => ds.build_event(),
+fn cycle_dialog_calendar(app: &mut AppState, delta: isize) {
+    let default_calendar_key = app.selected_new_event_calendar_key();
+    let Some(ds) = app.dialog_state.as_mut() else {
+        return;
+    };
+    if app.calendars.is_empty() {
+        ds.calendar_key = None;
+        return;
+    }
+
+    let current_key = ds
+        .calendar_key
+        .as_deref()
+        .or(default_calendar_key.as_deref());
+    let current_idx = current_key
+        .and_then(|key| app.calendars.iter().position(|cal| cal.key == key))
+        .unwrap_or(0);
+    let len = app.calendars.len() as isize;
+    let next_idx = (current_idx as isize + delta).rem_euclid(len) as usize;
+    ds.calendar_key = Some(app.calendars[next_idx].key.clone());
+}
+
+fn dialog_save(app: &mut AppState, tx: &UnboundedSender<AppEvent>) {
+    let (event, persist_default_key) = match app.dialog_state.as_ref() {
+        Some(ds) => (
+            ds.build_event(),
+            if ds.is_edit {
+                None
+            } else {
+                ds.calendar_key.clone()
+            },
+        ),
         None => return,
     };
-    let id = event.id.clone();
-    app.events.insert(id.clone(), event);
-    app.selected_event_id = Some(id);
-    app.rebuild_calendars_pub();
+    if let Some(key) = persist_default_key {
+        app.select_new_event_calendar_by_key(&key);
+        let _ = crate::config::loader::save_config(&app.config);
+    }
+
+    if !event.id.starts_with("local-") {
+        let id = event.id.clone();
+        app.events.insert(id.clone(), event);
+        app.selected_event_id = Some(id);
+        app.rebuild_calendars_pub();
+        app.dialog_state = None;
+        app.pop_overlay();
+        app.auto_select_event();
+        return;
+    }
+
+    let account_email = match event.account_email.clone() {
+        Some(email) if !email.is_empty() => email,
+        _ => {
+            app.show_message(crate::state::message::Message::error(
+                "Choose a calendar before creating the event.",
+            ));
+            return;
+        }
+    };
+    let calendar_id = match event.calendar_id.clone() {
+        Some(id) if !id.is_empty() => id,
+        _ => {
+            app.show_message(crate::state::message::Message::error(
+                "Choose a calendar before creating the event.",
+            ));
+            return;
+        }
+    };
+
+    let account_type = app
+        .accounts
+        .iter()
+        .find(|account| account.email == account_email)
+        .map(|account| account.account_type.clone())
+        .or_else(|| {
+            if app
+                .config
+                .caldav
+                .iter()
+                .any(|account| account.email == account_email)
+            {
+                Some(crate::auth::tokens::AccountType::CalDAV)
+            } else {
+                Some(crate::auth::tokens::AccountType::Google)
+            }
+        });
+    let config = app.config.clone();
+    let tx_clone = tx.clone();
+    tokio::spawn(async move {
+        let result = match account_type {
+            Some(crate::auth::tokens::AccountType::CalDAV) => {
+                let account = config
+                    .caldav
+                    .iter()
+                    .find(|account| account.email == account_email)
+                    .cloned();
+                match account {
+                    Some(account) => {
+                        crate::api::caldav::create_caldav_event(&account, &calendar_id, &event)
+                            .await
+                    }
+                    None => Err(anyhow::anyhow!(
+                        "CalDAV account not found for {}",
+                        account_email
+                    )),
+                }
+            }
+            Some(crate::auth::tokens::AccountType::Google) | None => {
+                let client_id = config.google.client_id.clone().unwrap_or_default();
+                let client_secret = config.google.client_secret.clone().unwrap_or_default();
+                if client_id.is_empty() || client_secret.is_empty() {
+                    Err(anyhow::anyhow!("Google credentials not configured."))
+                } else {
+                    let client = crate::api::gcal::GcalClient::new(client_id, client_secret);
+                    client
+                        .create_event(&account_email, &calendar_id, &event)
+                        .await
+                }
+            }
+        };
+
+        match result {
+            Ok(created) => {
+                tx_clone.send(AppEvent::EventCreated(created)).ok();
+            }
+            Err(e) => {
+                tx_clone
+                    .send(AppEvent::EventCreateError(e.to_string()))
+                    .ok();
+            }
+        }
+    });
+
+    app.show_message(crate::state::message::Message::info(
+        "Creating event on calendar…",
+    ));
     app.dialog_state = None;
     app.pop_overlay();
-    app.auto_select_event();
 }
 
 fn handle_goto_input(app: &mut AppState, key: KeyEvent) {
