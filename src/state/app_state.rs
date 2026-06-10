@@ -308,18 +308,26 @@ impl AppState {
     pub fn select_new_event_calendar(&mut self, idx: usize) -> Option<String> {
         let cal = self.calendars.get(idx)?;
         self.new_event_calendar_key = Some(cal.key.clone());
-        self.config.default_calendar = Some(cal.display_name.clone());
+        self.config.default_calendar = Some(cal.key.clone());
         Some(cal.display_name.clone())
     }
 
     pub fn select_new_event_calendar_by_key(&mut self, key: &str) -> Option<String> {
         let cal = self.calendars.iter().find(|cal| cal.key == key)?;
         self.new_event_calendar_key = Some(cal.key.clone());
-        self.config.default_calendar = Some(cal.display_name.clone());
+        self.config.default_calendar = Some(cal.key.clone());
         Some(cal.display_name.clone())
     }
 
     fn sync_new_event_calendar_selection(&mut self) {
+        if let Some(configured_key) = self.config.default_calendar.as_ref().and_then(|name| {
+            self.find_calendar_by_config_name(name)
+                .map(|cal| cal.key.clone())
+        }) {
+            self.new_event_calendar_key = Some(configured_key);
+            return;
+        }
+
         if self
             .new_event_calendar_key
             .as_ref()
@@ -328,23 +336,15 @@ impl AppState {
             return;
         }
 
-        self.new_event_calendar_key = self
-            .config
-            .default_calendar
-            .as_ref()
-            .and_then(|name| {
-                self.find_calendar_by_config_name(name)
-                    .map(|cal| cal.key.clone())
-            })
-            .or_else(|| self.calendars.first().map(|cal| cal.key.clone()));
+        self.new_event_calendar_key = self.calendars.first().map(|cal| cal.key.clone());
     }
 
     fn find_calendar_by_config_name(&self, name: &str) -> Option<&CalendarInfo> {
         let needle = name.trim();
         self.calendars
             .iter()
-            .find(|cal| cal.display_name == needle)
-            .or_else(|| self.calendars.iter().find(|cal| cal.key == needle))
+            .find(|cal| cal.key == needle)
+            .or_else(|| self.calendars.iter().find(|cal| cal.display_name == needle))
             .or_else(|| self.calendars.iter().find(|cal| cal.calendar_id == needle))
     }
 
@@ -688,4 +688,117 @@ pub enum SelectionDirection {
     Prev,
     First,
     Last,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::gcal::CalendarListEntry;
+    use crate::domain::event::{EventStatus, TimeObject};
+
+    fn calendar(account_email: &str, calendar_id: &str, display_name: &str) -> CalendarInfo {
+        CalendarInfo {
+            key: format!("{}:{}", account_email, calendar_id),
+            account_email: account_email.to_string(),
+            calendar_id: calendar_id.to_string(),
+            display_name: display_name.to_string(),
+            color: None,
+            enabled: true,
+        }
+    }
+
+    fn event(id: &str, account_email: &str, calendar_id: &str) -> CalEvent {
+        CalEvent {
+            id: id.to_string(),
+            summary: "event".to_string(),
+            description: None,
+            location: None,
+            html_link: None,
+            status: EventStatus::Confirmed,
+            event_type: None,
+            start: TimeObject {
+                date: Some("2026-06-10".to_string()),
+                date_time: None,
+                time_zone: None,
+            },
+            end: TimeObject {
+                date: Some("2026-06-11".to_string()),
+                date_time: None,
+                time_zone: None,
+            },
+            attendees: None,
+            organizer: None,
+            recurrence: None,
+            recurring_event_id: None,
+            original_start_time: None,
+            hangout_link: None,
+            reminders: None,
+            account_email: Some(account_email.to_string()),
+            calendar_id: Some(calendar_id.to_string()),
+        }
+    }
+
+    #[test]
+    fn selecting_default_calendar_persists_stable_key() {
+        let mut app = AppState::new(Config::default());
+        app.calendars = vec![
+            calendar("me@example.com", "primary", "Personal"),
+            calendar("me@example.com", "team", "Work"),
+        ];
+
+        let selected_name = app.select_new_event_calendar(1);
+
+        assert_eq!(selected_name.as_deref(), Some("Work"));
+        assert_eq!(
+            app.config.default_calendar.as_deref(),
+            Some("me@example.com:team")
+        );
+        assert_eq!(
+            app.selected_new_event_calendar_key().as_deref(),
+            Some("me@example.com:team")
+        );
+    }
+
+    #[test]
+    fn legacy_display_name_default_resolves_after_calendar_metadata_arrives() {
+        let mut config = Config::default();
+        config.default_calendar = Some("Work".to_string());
+        let mut app = AppState::new(config);
+
+        app.load_events(vec![
+            event("event-1", "me@example.com", "primary"),
+            event("event-2", "me@example.com", "team"),
+        ]);
+
+        assert_eq!(
+            app.selected_new_event_calendar_key().as_deref(),
+            Some("me@example.com:primary")
+        );
+
+        app.apply_api_calendars(&[
+            CalendarListEntry {
+                id: "primary".to_string(),
+                summary: "Personal".to_string(),
+                background_color: None,
+                foreground_color: None,
+                primary: Some(true),
+                access_role: "owner".to_string(),
+                account_email: "me@example.com".to_string(),
+            },
+            CalendarListEntry {
+                id: "team".to_string(),
+                summary: "Work".to_string(),
+                background_color: None,
+                foreground_color: None,
+                primary: Some(false),
+                access_role: "owner".to_string(),
+                account_email: "me@example.com".to_string(),
+            },
+        ]);
+
+        assert_eq!(
+            app.selected_new_event_calendar_key().as_deref(),
+            Some("me@example.com:team")
+        );
+    }
 }

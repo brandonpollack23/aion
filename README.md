@@ -388,10 +388,12 @@ New events also include a calendar dropdown. It defaults to `defaultCalendar` fr
 
 Create `~/.config/aion/config.toml` to customize Aion.
 
-Set the default destination for newly created events by calendar display name:
+Set the default destination for newly created events by calendar key. Calendar keys are shown as
+`account:calendar_id`; selecting a default with `d` in the calendars sidebar writes this value for
+you. Older configs that use a display name still load.
 
 ```toml
-defaultCalendar = "Work"
+defaultCalendar = "me@example.com:primary"
 ```
 
 ### Google Calendar

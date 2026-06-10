@@ -449,4 +449,22 @@ mod tests {
         assert_eq!(state.end_time, "14:45");
         assert!(state.when_input.is_empty());
     }
+
+    #[test]
+    fn typing_recognized_when_updates_preview_and_interpretation() {
+        let day = NaiveDate::from_ymd_opt(2026, 6, 10).unwrap();
+        let mut state = DialogState::new_event(day);
+        state.active_field = F_WHEN;
+
+        for c in "3pm".chars() {
+            state.push_char(c);
+        }
+
+        let interpreted = state.when_interpretation().unwrap();
+        assert!(state.when_preview.is_some());
+        assert_eq!(interpreted.start_time, "15:00");
+        assert_eq!(interpreted.end_time, "16:00");
+        assert_eq!(state.start_time, "09:00");
+        assert_eq!(state.end_time, "10:00");
+    }
 }

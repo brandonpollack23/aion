@@ -115,6 +115,10 @@ pub fn parse_natural_date(input: &str) -> Option<ParsedDate> {
         return None;
     }
 
+    if let Some(r) = parse_inline_time_range(s, today) {
+        return Some(r);
+    }
+
     // Range patterns first: "from X until Y", "between X and Y"
     if let Some(r) = parse_range(s, today) {
         return Some(r);
@@ -195,6 +199,23 @@ fn parse_range(s: &str, today: NaiveDate) -> Option<ParsedDate> {
     })
 }
 
+fn parse_inline_time_range(s: &str, today: NaiveDate) -> Option<ParsedDate> {
+    let normalized = s.replace(['–', '—'], "-");
+    let (start_str, end_str) = normalized.split_once('-')?;
+    let (date, start_time) = parse_date_time(start_str.trim(), today)?;
+    let start_time = start_time?;
+    let end_time = parse_time_with_meridiem_hint(end_str.trim(), start_time)?;
+
+    Some(ParsedDate {
+        date,
+        time: Some(start_time),
+        end_date: None,
+        end_time: Some(end_time),
+        is_date_range: false,
+        duration_minutes: None,
+    })
+}
+
 fn extract_duration(s: &str) -> (String, Option<i64>, Option<i64>) {
     let sl = s.to_lowercase();
     if let Some(pos) = sl.rfind(" for ") {
@@ -253,6 +274,10 @@ fn parse_shorthand(s: &str, today: NaiveDate) -> Option<NaiveDate> {
 fn parse_date_time(s: &str, today: NaiveDate) -> Option<(NaiveDate, Option<(u32, u32)>)> {
     let sl = s.to_lowercase();
     let sl = sl.trim();
+
+    if let Some(parsed) = parse_trailing_date_time(s.trim(), today) {
+        return Some(parsed);
+    }
 
     // Relative keywords: today, tomorrow, yesterday, tonight
     for (kw, offset) in &[
@@ -363,8 +388,8 @@ fn parse_date_time(s: &str, today: NaiveDate) -> Option<(NaiveDate, Option<(u32,
     }
 
     // M/D (current or next year)
-    if let Ok(d) = NaiveDate::parse_from_str(s.trim(), "%m/%d") {
-        return Some((adjust_year(d, today), None));
+    if let Some(d) = parse_numeric_month_day(s.trim(), today) {
+        return Some((d, None));
     }
 
     // "Mar 15", "March 15", "Mar 15 2026", etc.
@@ -373,6 +398,63 @@ fn parse_date_time(s: &str, today: NaiveDate) -> Option<(NaiveDate, Option<(u32,
     }
 
     None
+}
+
+fn parse_trailing_date_time(s: &str, today: NaiveDate) -> Option<(NaiveDate, Option<(u32, u32)>)> {
+    let parts: Vec<&str> = s.split_whitespace().collect();
+    if parts.len() < 2 {
+        return None;
+    }
+
+    for time_start in 1..parts.len() {
+        let date_str = parts[..time_start].join(" ");
+        let time_part = parts[time_start..].join(" ");
+        let time_str = strip_at_prefix(&time_part);
+        if let (Some(date), Some(time)) = (
+            parse_standalone_date(&date_str, today),
+            parse_time(time_str),
+        ) {
+            return Some((date, Some(time)));
+        }
+    }
+
+    None
+}
+
+fn parse_standalone_date(s: &str, today: NaiveDate) -> Option<NaiveDate> {
+    let s = s.trim();
+    let sl = s.to_lowercase();
+    match sl.as_str() {
+        "tonight" | "today" => return Some(today),
+        "tomorrow" => return Some(today + Duration::days(1)),
+        "yesterday" => return Some(today - Duration::days(1)),
+        _ => {}
+    }
+
+    if let Some(rest) = sl.strip_prefix("next ") {
+        return parse_weekday(rest).map(|wd| next_weekday_from(today, wd, true));
+    }
+    if let Some(rest) = sl.strip_prefix("this ") {
+        return parse_weekday(rest).map(|wd| next_weekday_from(today, wd, false));
+    }
+    if let Some(wd) = parse_weekday(&sl) {
+        return Some(next_weekday_from(today, wd, false));
+    }
+    if let Some(date) = parse_shorthand(s, today) {
+        return Some(date);
+    }
+    if let Ok(d) = NaiveDate::parse_from_str(s, "%Y-%m-%d") {
+        return Some(d);
+    }
+    for fmt in &["%m/%d/%Y", "%m/%d/%y"] {
+        if let Ok(d) = NaiveDate::parse_from_str(s, fmt) {
+            return Some(d);
+        }
+    }
+    if let Some(d) = parse_numeric_month_day(s, today) {
+        return Some(d);
+    }
+    parse_month_day(s, today)
 }
 
 fn strip_at_prefix<'a>(s: &'a str) -> &'a str {
@@ -460,7 +542,28 @@ fn parse_time(s: &str) -> Option<(u32, u32)> {
         }
     }
 
+    if let Ok(h) = sl.parse::<u32>() {
+        if h < 24 {
+            return Some((h, 0));
+        }
+    }
+
     None
+}
+
+fn parse_time_with_meridiem_hint(s: &str, start_time: (u32, u32)) -> Option<(u32, u32)> {
+    let end = parse_time(s)?;
+    let sl = s.trim().to_lowercase();
+    if sl.ends_with("am") || sl.ends_with("pm") || end.0 >= 12 || start_time.0 < 12 {
+        return Some(end);
+    }
+
+    let pm_end = (end.0 + 12, end.1);
+    if pm_end.0 < 24 && pm_end > start_time {
+        Some(pm_end)
+    } else {
+        Some(end)
+    }
 }
 
 fn parse_weekday(s: &str) -> Option<Weekday> {
@@ -497,6 +600,9 @@ fn adjust_year(d: NaiveDate, today: NaiveDate) -> NaiveDate {
 }
 
 fn parse_month_day(s: &str, today: NaiveDate) -> Option<NaiveDate> {
+    if let Some(d) = parse_named_month_day(s, today) {
+        return Some(d);
+    }
     for fmt in &[
         "%b %d %Y", "%B %d %Y", "%b %d", "%B %d", "%d %b %Y", "%d %B %Y", "%d %b", "%d %B",
     ] {
@@ -509,6 +615,69 @@ fn parse_month_day(s: &str, today: NaiveDate) -> Option<NaiveDate> {
         }
     }
     None
+}
+
+fn parse_numeric_month_day(s: &str, today: NaiveDate) -> Option<NaiveDate> {
+    let mut parts = s.split('/');
+    let month = parts.next()?.parse::<u32>().ok()?;
+    let day = parts.next()?.parse::<u32>().ok()?;
+    if parts.next().is_some() {
+        return None;
+    }
+    let date = NaiveDate::from_ymd_opt(today.year(), month, day)?;
+    Some(adjust_year(date, today))
+}
+
+fn parse_named_month_day(s: &str, today: NaiveDate) -> Option<NaiveDate> {
+    let cleaned = s.replace(',', " ");
+    let parts: Vec<&str> = cleaned.split_whitespace().collect();
+    if parts.len() != 2 && parts.len() != 3 {
+        return None;
+    }
+
+    let (month_str, day_str, year) = if let Some(month) = month_number(parts[0]) {
+        (
+            Some(month),
+            parts[1],
+            parts.get(2).and_then(|y| y.parse::<i32>().ok()),
+        )
+    } else if let Some(month) = month_number(parts[1]) {
+        (
+            Some(month),
+            parts[0],
+            parts.get(2).and_then(|y| y.parse::<i32>().ok()),
+        )
+    } else {
+        (None, "", None)
+    };
+
+    let month = month_str?;
+    let day = day_str.parse::<u32>().ok()?;
+    let year = year.unwrap_or_else(|| today.year());
+    let date = NaiveDate::from_ymd_opt(year, month, day)?;
+    Some(if parts.len() == 3 {
+        date
+    } else {
+        adjust_year(date, today)
+    })
+}
+
+fn month_number(s: &str) -> Option<u32> {
+    match s.to_lowercase().as_str() {
+        "jan" | "january" => Some(1),
+        "feb" | "february" => Some(2),
+        "mar" | "march" => Some(3),
+        "apr" | "april" => Some(4),
+        "may" => Some(5),
+        "jun" | "june" => Some(6),
+        "jul" | "july" => Some(7),
+        "aug" | "august" => Some(8),
+        "sep" | "sept" | "september" => Some(9),
+        "oct" | "october" => Some(10),
+        "nov" | "november" => Some(11),
+        "dec" | "december" => Some(12),
+        _ => None,
+    }
 }
 
 pub fn format_parsed_preview(parsed: &ParsedDate) -> String {
@@ -593,5 +762,37 @@ mod tests {
         assert_eq!(interpreted.start_time, "23:30");
         assert_eq!(interpreted.end_date, "2026-06-11");
         assert_eq!(interpreted.end_time, "00:15");
+    }
+
+    #[test]
+    fn parses_common_when_field_forms() {
+        let time_only = parse_natural_date("3pm").unwrap();
+        assert_eq!(time_only.time, Some((15, 0)));
+
+        let bare_hour = parse_natural_date("15").unwrap();
+        assert_eq!(bare_hour.time, Some((15, 0)));
+
+        let tomorrow_at_bare_hour = parse_natural_date("tomorrow at 4").unwrap();
+        assert_eq!(tomorrow_at_bare_hour.time, Some((4, 0)));
+
+        let slash_date_with_time = parse_natural_date("6/10 3pm").unwrap();
+        assert_eq!(slash_date_with_time.time, Some((15, 0)));
+
+        let month_date_with_time = parse_natural_date("June 10 3pm").unwrap();
+        assert_eq!(month_date_with_time.time, Some((15, 0)));
+
+        let weekday_with_time = parse_natural_date("next fri 3pm").unwrap();
+        assert_eq!(weekday_with_time.time, Some((15, 0)));
+    }
+
+    #[test]
+    fn parses_inline_time_ranges() {
+        let range = parse_natural_date("tomorrow 3pm-4").unwrap();
+        assert_eq!(range.time, Some((15, 0)));
+        assert_eq!(range.end_time, Some((16, 0)));
+
+        let spaced_range = parse_natural_date("6/10 09:30 - 10:15").unwrap();
+        assert_eq!(spaced_range.time, Some((9, 30)));
+        assert_eq!(spaced_range.end_time, Some((10, 15)));
     }
 }
